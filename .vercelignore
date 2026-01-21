@@ -1,0 +1,15 @@
+backend/
+.git/
+.gitignore
+docker-compose.yml
+Dockerfile
+nginx.conf
+requirements.txt
+run_local.sh
+*.md
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo

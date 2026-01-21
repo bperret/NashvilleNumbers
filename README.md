@@ -15,6 +15,36 @@ Built for worship band musicians (especially bass players) who need to quickly c
 - **Quality Support**: Handles maj7, 7th, sus, dim, aug, add9, slash chords, and more
 - **Privacy First**: No permanent storage, files deleted after 15 minutes
 
+## Deployment
+
+**Note**: This app requires system dependencies (Tesseract OCR, poppler-utils) that Vercel doesn't support. For production deployment, use a **hybrid approach**:
+
+- **Frontend** → Vercel (static site)
+- **Backend** → Railway/Render/Fly.io (Docker support)
+
+📖 **See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions**
+
+### Quick Deploy
+
+1. **Deploy Backend to Railway:**
+   - Connect your GitHub repo at https://railway.app
+   - Railway auto-detects the Dockerfile
+   - Copy your Railway URL (e.g., `https://your-app.up.railway.app`)
+
+2. **Deploy Frontend to Vercel:**
+   ```bash
+   vercel --prod
+   ```
+
+3. **Configure API URL:**
+   - Edit `frontend/config.js`
+   - Set `window.BACKEND_URL = 'https://your-railway-url.com'`
+   - Redeploy to Vercel
+
+4. **Update CORS:**
+   - Edit `backend/api/main.py` line 38
+   - Add your Vercel domain to `allow_origins`
+
 ## Quick Start
 
 ### Using Docker (Recommended)
