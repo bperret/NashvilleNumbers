@@ -12,13 +12,8 @@ from backend.core.text_pdf_handler import (
     detect_if_text_pdf,
     filter_false_positives
 )
-from backend.core.ocr_pdf_handler import (
-    extract_chords_from_scanned_pdf,
-    check_tesseract_available
-)
 from backend.core.pdf_renderer import (
     render_text_pdf_with_nashville,
-    render_scanned_pdf_with_nashville,
     estimate_render_quality
 )
 from backend.core.nashville_converter import (
@@ -39,7 +34,7 @@ class PDFProcessor:
 
     def __init__(self):
         """Initialize the PDF processor."""
-        self.tesseract_available = check_tesseract_available()
+        pass
 
     def process_pdf(
         self,
@@ -72,22 +67,19 @@ class PDFProcessor:
         if not validate_key(key):
             raise PDFProcessingError(f"Invalid key: {key}. Must be a valid note (A-G with optional # or b)")
 
-        # Detect PDF type
-        is_text_based = detect_if_text_pdf(input_pdf_path) and not force_ocr
+        # Check if PDF is text-based
+        is_text_based = detect_if_text_pdf(input_pdf_path)
 
-        # Extract chords
+        if not is_text_based:
+            raise PDFProcessingError(
+                "This PDF appears to be a scanned image. Only text-based PDFs are supported. "
+                "Please use a PDF with selectable text (not a scanned image)."
+            )
+
+        # Extract chords from text-based PDF
         try:
-            if is_text_based:
-                chord_annotations, metadata = extract_chords_from_text_pdf(input_pdf_path)
-                processing_method = "text_extraction"
-            else:
-                if not self.tesseract_available:
-                    raise PDFProcessingError(
-                        "PDF appears to be scanned, but Tesseract OCR is not available. "
-                        "Please install Tesseract to process scanned PDFs."
-                    )
-                chord_annotations, metadata = extract_chords_from_scanned_pdf(input_pdf_path)
-                processing_method = "ocr"
+            chord_annotations, metadata = extract_chords_from_text_pdf(input_pdf_path)
+            processing_method = "text_extraction"
         except Exception as e:
             raise PDFProcessingError(f"Failed to extract chords: {str(e)}")
 
@@ -119,22 +111,13 @@ class PDFProcessor:
 
         # Render output PDF
         try:
-            if is_text_based:
-                render_text_pdf_with_nashville(
-                    input_pdf_path,
-                    chord_annotations,
-                    nashville_numbers,
-                    output_pdf_path,
-                    metadata
-                )
-            else:
-                render_scanned_pdf_with_nashville(
-                    input_pdf_path,
-                    chord_annotations,
-                    nashville_numbers,
-                    output_pdf_path,
-                    metadata
-                )
+            render_text_pdf_with_nashville(
+                input_pdf_path,
+                chord_annotations,
+                nashville_numbers,
+                output_pdf_path,
+                metadata
+            )
         except Exception as e:
             raise PDFProcessingError(f"Failed to render output PDF: {str(e)}")
 
@@ -173,23 +156,20 @@ class PDFProcessor:
         # Check if it's text-based
         is_text_based = detect_if_text_pdf(pdf_path)
 
+        if not is_text_based:
+            return {
+                'valid': False,
+                'error': 'PDF is scanned/image-based. Only text-based PDFs are supported.',
+                'is_text_based': False
+            }
+
         # Try to extract a few chords as a test
         try:
-            if is_text_based:
-                chords, metadata = extract_chords_from_text_pdf(pdf_path)
-            else:
-                if not self.tesseract_available:
-                    return {
-                        'valid': False,
-                        'error': 'PDF is scanned but OCR not available',
-                        'is_text_based': False,
-                        'requires_ocr': True
-                    }
-                chords, metadata = extract_chords_from_scanned_pdf(pdf_path)
+            chords, metadata = extract_chords_from_text_pdf(pdf_path)
 
             return {
                 'valid': True,
-                'is_text_based': is_text_based,
+                'is_text_based': True,
                 'num_pages': metadata.get('num_pages', 0),
                 'sample_chords_found': min(len(chords), 5),
                 'sample_chords': [c.text for c in chords[:5]]
@@ -224,7 +204,7 @@ def get_processing_stats() -> Dict[str, Any]:
     """
     return {
         'text_pdf_support': True,
-        'ocr_support': check_tesseract_available(),
+        'ocr_support': False,
         'supported_keys': get_supported_keys(),
         'supported_modes': ['major', 'minor']
     }

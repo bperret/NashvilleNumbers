@@ -421,15 +421,15 @@
             try {
                 // Make API request
                 // Configure your backend URL here:
-                // - For local Docker: '/api/convert'
-                // - For local dev: 'http://localhost:8000/convert'
-                // - For production: 'https://your-backend.up.railway.app/convert'
-                const BACKEND_URL = window.BACKEND_URL || null; // Set this in production
+                // - For Vercel deployment: '/api/convert' (default)
+                // - For local backend dev: 'http://localhost:8000/convert'
+                // - For separate backend: Set window.BACKEND_URL to your backend URL
+                const BACKEND_URL = window.BACKEND_URL || null;
 
                 const apiUrl = BACKEND_URL || (
-                    window.location.port === '3000'
-                        ? '/api/convert'
-                        : 'http://localhost:8000/convert'
+                    window.location.hostname === 'localhost' && window.location.port === '8000'
+                        ? 'http://localhost:8000/convert'
+                        : '/api/convert'
                 );
 
                 const response = await fetch(apiUrl, {

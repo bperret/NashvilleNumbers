@@ -6,28 +6,26 @@ Built for worship band musicians (especially bass players) who need to quickly c
 
 ## Features
 
-- **PDF Upload**: Drag-and-drop or click to upload chord chart PDFs
-- **Smart Detection**: Automatically detects text-based vs scanned PDFs
-- **OCR Support**: Handles scanned PDFs using Tesseract OCR
+- **PDF Upload**: Drag-and-drop or click to upload chord chart PDFs (text-based only)
 - **Nashville Conversion**: Converts chord symbols (C, Dm, G7, etc.) to Nashville numbers (1, 2m, 5/7, etc.)
 - **Layout Preservation**: Maintains original fonts, spacing, and positioning
 - **Key Selection**: Support for all major and minor keys
 - **Quality Support**: Handles maj7, 7th, sus, dim, aug, add9, slash chords, and more
 - **Privacy First**: No permanent storage, files deleted after 15 minutes
+- **Vercel Deployment**: Fully serverless deployment on Vercel (no Docker required)
 
 ## Deployment
 
-**Note**: This app requires system dependencies (Tesseract OCR, poppler-utils) that Vercel doesn't support. For production deployment, use a **hybrid approach**:
-
-- **Frontend** → Vercel (static site)
-- **Backend** → Railway/Render/Fly.io (Docker support)
+This app is configured for **single-platform deployment on Vercel** with both frontend and backend.
 
 📖 **See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions**
 
-### Quick Deploy
+### Quick Deploy to Vercel
 
-1. **Deploy Backend to Railway:**
-   - Connect your GitHub repo at https://railway.app
+1. **Connect your repository to Vercel:**
+   - Go to https://vercel.com/new
+   - Import your GitHub repo
+   - Click "Deploy"
    - Railway auto-detects the Dockerfile
    - Copy your Railway URL (e.g., `https://your-app.up.railway.app`)
 
@@ -72,27 +70,17 @@ Built for worship band musicians (especially bass players) who need to quickly c
 
 ### Local Development (Without Docker)
 
-1. **Install system dependencies**
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get update
-   sudo apt-get install -y tesseract-ocr poppler-utils
-
-   # macOS
-   brew install tesseract poppler
-   ```
-
-2. **Install Python dependencies**
+1. **Install Python dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Start the backend**
+2. **Start the backend**
    ```bash
    uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-4. **Serve the frontend**
+3. **Serve the frontend**
    ```bash
    # Option 1: Using Python
    cd frontend
@@ -140,11 +128,10 @@ In the key of **G Major**:
 
 ### Tech Stack
 
-- **Backend**: FastAPI (Python)
+- **Backend**: FastAPI (Python serverless functions)
 - **PDF Processing**: pdfplumber (text extraction), reportlab (PDF generation)
-- **OCR**: Tesseract + pytesseract
 - **Frontend**: Vanilla HTML/CSS/JavaScript
-- **Deployment**: Docker + docker-compose
+- **Deployment**: Vercel (full-stack serverless)
 
 ### Data Flow
 
@@ -153,14 +140,9 @@ User uploads PDF
       ↓
 Backend receives file
       ↓
-Detect PDF type (text vs scanned)
+Detect PDF type (text-based only)
       ↓
-┌─────────────┬─────────────┐
-│ Text PDF    │ Scanned PDF │
-│ pdfplumber  │ Tesseract   │
-└─────────────┴─────────────┘
-      ↓
-Extract chords with bounding boxes
+Extract chords with bounding boxes (pdfplumber)
       ↓
 Parse chord symbols (regex)
       ↓
@@ -171,10 +153,14 @@ Render new PDF with numbers at original positions
 Return converted PDF to user
 ```
 
+**Note:** Only text-based PDFs are supported (PDFs with selectable text). Scanned images/photos are not supported as OCR is disabled for Vercel deployment compatibility.
+
 ### Module Structure
 
 ```
 nashville_converter/
+├── api/
+│   └── index.py                 # Vercel serverless function entry
 ├── backend/
 │   ├── api/
 │   │   └── main.py              # FastAPI app and endpoints
@@ -182,7 +168,6 @@ nashville_converter/
 │   │   ├── chord_parser.py      # Chord regex and parsing
 │   │   ├── nashville_converter.py # Music theory conversion
 │   │   ├── text_pdf_handler.py  # Text-based PDF processing
-│   │   ├── ocr_pdf_handler.py   # Scanned PDF + OCR
 │   │   ├── pdf_renderer.py      # Output PDF generation
 │   │   └── pdf_processor.py     # Main orchestrator
 │   └── tests/
@@ -191,9 +176,9 @@ nashville_converter/
 ├── frontend/
 │   └── index.html               # Upload UI
 ├── ARCHITECTURE.md              # Detailed architecture docs
-├── Dockerfile
-├── docker-compose.yml
+├── DEPLOYMENT.md                # Vercel deployment guide
 ├── requirements.txt
+├── vercel.json                  # Vercel configuration
 └── README.md
 ```
 
@@ -256,7 +241,7 @@ Health check endpoint.
   "status": "healthy",
   "capabilities": {
     "text_pdf_support": true,
-    "ocr_support": true,
+    "ocr_support": false,
     "supported_keys": [...],
     "supported_modes": ["major", "minor"]
   }
@@ -269,14 +254,14 @@ Health check endpoint.
 1. **Chord Detection**: Regex-based pattern matching may miss unusual chord symbols or misidentify words as chords
 2. **Font Matching**: Best-effort font replication; exact fonts not always available
 3. **Layout Precision**: Complex multi-column layouts may have minor positioning errors
-4. **OCR Accuracy**: Scanned PDF quality directly impacts chord detection accuracy
+4. **Text-Based PDFs Only**: Scanned images/photos are not supported (OCR disabled)
 5. **No Auto-Key Detection**: User must manually specify the song key
 6. **Single File**: Processes one PDF at a time (no batch mode)
 7. **File Size**: 10 MB maximum per PDF
 
 ### Edge Cases
 - **Ambiguous Text**: Single-letter words like "A" could be chords or lyrics
-- **Handwritten Charts**: Not supported (requires clean scanned text)
+- **Scanned/Image PDFs**: Not supported (OCR is disabled for Vercel compatibility)
 - **Encrypted PDFs**: Cannot be processed
 - **Non-Standard Notation**: Jazz symbols like ø, △ may not be recognized
 - **Transposition**: Tool converts to Nashville, but doesn't transpose keys
@@ -285,12 +270,13 @@ Health check endpoint.
 
 ### "No chords detected"
 - Ensure PDF contains actual chord symbols (C, Dm, G7, etc.)
-- Try uploading a clearer scan if using a scanned PDF
+- Verify the PDF has selectable text (not a scanned image)
 - Check that PDF is not encrypted or password-protected
 
-### "OCR not available"
-- Install Tesseract: `sudo apt-get install tesseract-ocr` (Linux) or `brew install tesseract` (Mac)
-- Rebuild Docker image if using containers
+### "PDF appears to be a scanned image"
+- This app only supports text-based PDFs with selectable text
+- Use an online OCR tool to convert scanned PDFs to text-based PDFs first
+- Or create a new PDF with text (not images/photos)
 
 ### "File too large"
 - Current limit is 10 MB per PDF
@@ -342,8 +328,7 @@ Built for worship band musicians who need quick Nashville Number conversions.
 - FastAPI - Modern Python web framework
 - pdfplumber - PDF text extraction
 - reportlab - PDF generation
-- Tesseract - OCR engine
-- Docker - Containerization
+- Vercel - Serverless deployment platform
 
 ## Support
 
@@ -354,5 +339,5 @@ For issues or questions:
 ---
 
 **Version**: 1.0.0 (MVP)
-**Status**: Production-ready for local use
+**Status**: Production-ready for Vercel deployment
 **Target Users**: Worship band musicians, music directors, bass players
