@@ -162,6 +162,55 @@ Railway, Render, and Fly.io support full Docker containers with persistent proce
 
 ---
 
+## Configuration Validation
+
+Before deploying, validate your Vercel configuration to ensure there are no conflicts:
+
+```bash
+# Run the validation script
+python3 validate_vercel_config.py
+```
+
+### Common Configuration Conflicts
+
+**Vercel Configuration Conflict**: The legacy `routes` property cannot be used alongside modern routing properties:
+- `rewrites`
+- `redirects`
+- `headers`
+- `cleanUrls`
+- `trailingSlash`
+
+If you need both routing and headers/redirects, use `rewrites` instead of `routes`.
+
+**Example - Correct Configuration:**
+```json
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
+  ]
+}
+```
+
+**Example - Incorrect Configuration:**
+```json
+{
+  "routes": [
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "headers": [...]  // ❌ CONFLICT - Cannot use both!
+}
+```
+
+---
+
 ## Testing Deployment
 
 ### Test Backend API
