@@ -313,6 +313,9 @@
         </div>
     </div>
 
+    <!-- Backend Configuration -->
+    <script src="config.js"></script>
+
     <script>
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -417,11 +420,17 @@
 
             try {
                 // Make API request
-                // When running with docker-compose, use /api/ prefix
-                // When running backend directly, use http://localhost:8000
-                const apiUrl = window.location.port === '3000'
-                    ? '/api/convert'
-                    : 'http://localhost:8000/convert';
+                // Configure your backend URL here:
+                // - For local Docker: '/api/convert'
+                // - For local dev: 'http://localhost:8000/convert'
+                // - For production: 'https://your-backend.up.railway.app/convert'
+                const BACKEND_URL = window.BACKEND_URL || null; // Set this in production
+
+                const apiUrl = BACKEND_URL || (
+                    window.location.port === '3000'
+                        ? '/api/convert'
+                        : 'http://localhost:8000/convert'
+                );
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
