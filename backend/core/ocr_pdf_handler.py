@@ -9,10 +9,12 @@ This prevents import errors in serverless environments where system dependencies
 (tesseract-ocr, poppler) may not be available.
 """
 
-from PIL import Image
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, TYPE_CHECKING
 from backend.core.chord_parser import parse_chord, is_likely_chord
 from backend.core.text_pdf_handler import ChordAnnotation
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 
 def extract_chords_from_scanned_pdf(pdf_path: str, dpi: int = 150) -> Tuple[List[ChordAnnotation], Dict[str, Any]]:
@@ -131,9 +133,12 @@ def extract_chords_from_scanned_pdf(pdf_path: str, dpi: int = 150) -> Tuple[List
     return chords, metadata
 
 
-def preprocess_image_for_ocr(image: Image.Image) -> Image.Image:
+def preprocess_image_for_ocr(image: "Image.Image") -> "Image.Image":
     """
     Preprocess an image to improve OCR accuracy.
+
+    Note: PIL is not imported at module level to avoid serverless cold start issues.
+    This function will import PIL when called.
 
     Args:
         image: PIL Image
@@ -141,6 +146,15 @@ def preprocess_image_for_ocr(image: Image.Image) -> Image.Image:
     Returns:
         Preprocessed PIL Image
     """
+    # Lazy import to avoid loading PIL in serverless environments
+    try:
+        from PIL import Image
+    except ImportError as e:
+        raise Exception(
+            "PIL (Pillow) not available. This feature requires Pillow. "
+            f"Import error: {str(e)}"
+        )
+
     # Convert to grayscale
     image = image.convert('L')
 
