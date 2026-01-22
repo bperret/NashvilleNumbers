@@ -7,9 +7,6 @@ This script creates simple PDFs with chord progressions for testing purposes.
 
 import sys
 from pathlib import Path
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -22,6 +19,16 @@ def create_simple_chord_chart(output_path: Path):
     Create a simple PDF with a basic chord progression
     Good for testing text-based PDF extraction
     """
+    # Lazy import to avoid serverless cold start failures
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+    except ImportError as e:
+        raise ImportError(
+            "reportlab is required for PDF generation. Install with: pip install reportlab"
+        ) from e
+
     c = canvas.Canvas(str(output_path), pagesize=letter)
     width, height = letter
 
@@ -144,6 +151,16 @@ def create_complex_chord_chart(output_path: Path):
     Create a more complex PDF with various chord types
     Tests more advanced chord parsing
     """
+    # Lazy import to avoid serverless cold start failures
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+    except ImportError as e:
+        raise ImportError(
+            "reportlab is required for PDF generation. Install with: pip install reportlab"
+        ) from e
+
     c = canvas.Canvas(str(output_path), pagesize=letter)
     width, height = letter
 
@@ -201,6 +218,16 @@ def create_multipage_chart(output_path: Path):
     """
     Create a multi-page PDF to test page processing
     """
+    # Lazy import to avoid serverless cold start failures
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+    except ImportError as e:
+        raise ImportError(
+            "reportlab is required for PDF generation. Install with: pip install reportlab"
+        ) from e
+
     c = canvas.Canvas(str(output_path), pagesize=letter)
     width, height = letter
 
