@@ -300,20 +300,23 @@ async def validate_pdf_endpoint(
 
 
 # Periodic cleanup task to remove old temp files
-@app.on_event("startup")
-async def startup_event():
-    """
-    Run cleanup on startup.
-    """
-    # Clean up any leftover temp files from previous runs
-    for file_path in TEMP_DIR.glob("*.pdf"):
-        try:
-            # Check file age
-            file_age = datetime.now() - datetime.fromtimestamp(file_path.stat().st_mtime)
-            if file_age > timedelta(minutes=30):
-                file_path.unlink()
-        except Exception:
-            pass
+# Note: Disabled for serverless compatibility. In serverless environments,
+# lifecycle events are not supported when using Mangum with lifespan="off".
+# Cleanup is handled by background tasks for files created during each request.
+# @app.on_event("startup")
+# async def startup_event():
+#     """
+#     Run cleanup on startup.
+#     """
+#     # Clean up any leftover temp files from previous runs
+#     for file_path in TEMP_DIR.glob("*.pdf"):
+#         try:
+#             # Check file age
+#             file_age = datetime.now() - datetime.fromtimestamp(file_path.stat().st_mtime)
+#             if file_age > timedelta(minutes=30):
+#                 file_path.unlink()
+#         except Exception:
+#             pass
 
 
 if __name__ == "__main__":
