@@ -123,29 +123,28 @@ class TestPDFProcessor:
 
     def test_invalid_input_path(self, pdf_processor):
         """Test handling of invalid input path"""
-        result = pdf_processor.process_pdf(
-            '/nonexistent/path/to/file.pdf',
-            str(OUTPUT_DIR / 'output.pdf'),
-            key='C',
-            mode='major'
-        )
+        from backend.core.pdf_processor import PDFProcessingError
 
-        assert result['success'] is False
-        assert 'error' in result
+        with pytest.raises(PDFProcessingError, match="Input PDF not found"):
+            pdf_processor.process_pdf(
+                '/nonexistent/path/to/file.pdf',
+                str(OUTPUT_DIR / 'output.pdf'),
+                key='C',
+                mode='major'
+            )
 
     def test_invalid_key(self, pdf_processor, sample_text_pdf):
         """Test handling of invalid musical key"""
+        from backend.core.pdf_processor import PDFProcessingError
         output_path = OUTPUT_DIR / 'test_invalid_key.pdf'
 
-        result = pdf_processor.process_pdf(
-            str(sample_text_pdf),
-            str(output_path),
-            key='InvalidKey',
-            mode='major'
-        )
-
-        # Should either fail or handle gracefully
-        assert 'error' in result or result['success'] is False
+        with pytest.raises(PDFProcessingError, match="Invalid key"):
+            pdf_processor.process_pdf(
+                str(sample_text_pdf),
+                str(output_path),
+                key='InvalidKey',
+                mode='major'
+            )
 
 
 class TestTextPDFHandler:
@@ -271,37 +270,39 @@ class TestErrorHandling:
 
     def test_empty_pdf(self, pdf_processor):
         """Test handling of empty PDF (if we have one)"""
+        from backend.core.pdf_processor import PDFProcessingError
         empty_pdf = INPUT_DIR / 'empty.pdf'
         if not empty_pdf.exists():
             pytest.skip("No empty PDF fixture available")
 
         output_path = OUTPUT_DIR / 'test_empty_output.pdf'
-        result = pdf_processor.process_pdf(
-            str(empty_pdf),
-            str(output_path),
-            key='C',
-            mode='major'
-        )
 
-        # Should handle gracefully
-        assert 'error' in result or result['success'] is False
+        # Empty PDFs should raise an error
+        with pytest.raises(PDFProcessingError):
+            pdf_processor.process_pdf(
+                str(empty_pdf),
+                str(output_path),
+                key='C',
+                mode='major'
+            )
 
     def test_corrupted_pdf(self, pdf_processor):
         """Test handling of corrupted PDF"""
+        from backend.core.pdf_processor import PDFProcessingError
         corrupted_pdf = INPUT_DIR / 'corrupted.pdf'
         if not corrupted_pdf.exists():
             pytest.skip("No corrupted PDF fixture available")
 
         output_path = OUTPUT_DIR / 'test_corrupted_output.pdf'
-        result = pdf_processor.process_pdf(
-            str(corrupted_pdf),
-            str(output_path),
-            key='C',
-            mode='major'
-        )
 
-        assert result['success'] is False
-        assert 'error' in result
+        # Corrupted PDFs should raise an error
+        with pytest.raises(PDFProcessingError):
+            pdf_processor.process_pdf(
+                str(corrupted_pdf),
+                str(output_path),
+                key='C',
+                mode='major'
+            )
 
     def test_oversized_pdf(self, pdf_processor):
         """Test handling of oversized PDF (>10MB limit)"""
@@ -310,30 +311,36 @@ class TestErrorHandling:
 
 
 # Helper function to run tests on a specific PDF
-def test_specific_pdf(pdf_path: str, key: str = 'C', mode: str = 'major') -> Dict[str, Any]:
+def run_specific_pdf(pdf_path: str, key: str = 'C', mode: str = 'major') -> Dict[str, Any]:
     """
     Helper function to test a specific PDF file
     Useful for manual testing and debugging
 
     Usage:
-        from tests.test_pdf_generation import test_specific_pdf
-        result = test_specific_pdf('path/to/my.pdf', key='G', mode='major')
+        from tests.test_pdf_generation import run_specific_pdf
+        result = run_specific_pdf('path/to/my.pdf', key='G', mode='major')
     """
+    from backend.core.pdf_processor import PDFProcessingError
     processor = PDFProcessor()
     output_path = OUTPUT_DIR / f'{Path(pdf_path).stem}_test_output.pdf'
 
-    result = processor.process_pdf(
-        pdf_path,
-        str(output_path),
-        key=key,
-        mode=mode
-    )
+    try:
+        result = processor.process_pdf(
+            pdf_path,
+            str(output_path),
+            key=key,
+            mode=mode
+        )
+        success = True
+    except PDFProcessingError as e:
+        result = {'error': str(e)}
+        success = False
 
     print(f"\n{'=' * 70}")
     print(f"Test Results for: {Path(pdf_path).name}")
     print(f"{'=' * 70}")
-    print(f"Success: {result['success']}")
-    if result['success']:
+    print(f"Success: {success}")
+    if success:
         print(f"Output: {output_path}")
         print(f"PDF Type: {result.get('pdf_type')}")
         print(f"Pages: {result.get('pages_processed')}")
@@ -343,4 +350,5 @@ def test_specific_pdf(pdf_path: str, key: str = 'C', mode: str = 'major') -> Dic
         print(f"Error: {result.get('error')}")
     print(f"{'=' * 70}\n")
 
+    result['success'] = success
     return result
