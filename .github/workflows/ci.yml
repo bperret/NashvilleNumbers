@@ -1,0 +1,75 @@
+name: CI - PDF Conversion Smoke Test
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  smoke-test:
+    name: PDF Conversion Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run smoke test
+        id: smoke_test
+        run: |
+          python scripts/smoke_convert.py
+        continue-on-error: true
+
+      - name: Display smoke test logs
+        if: always()
+        run: |
+          echo "=== Smoke Test Logs ==="
+          if [ -f artifacts/smoke.log ]; then
+            cat artifacts/smoke.log
+          else
+            echo "No smoke.log found"
+          fi
+
+      - name: Upload artifacts on failure
+        if: failure() || steps.smoke_test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-artifacts
+          path: |
+            artifacts/output.pdf
+            artifacts/smoke.log
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload artifacts on success
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-success-artifacts
+          path: |
+            artifacts/output.pdf
+            artifacts/smoke.log
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Check test result
+        if: steps.smoke_test.outcome == 'failure'
+        run: |
+          echo "::error::Smoke test failed. Check artifacts for details."
+          exit 1

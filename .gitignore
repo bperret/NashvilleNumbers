@@ -45,6 +45,9 @@ Thumbs.db
 *.tmp
 *.log
 
+# Smoke test artifacts
+/artifacts/
+
 # Docker
 .docker/
 
@@ -55,6 +58,9 @@ Thumbs.db
 # PDF temp files
 /tmp/nashville_converter/
 *.pdf
+# Exception: include test fixtures
+!testdata/*.pdf
+!testdata/**/*.pdf
 
 # Notebooks
 .ipynb_checkpoints/

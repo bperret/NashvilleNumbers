@@ -197,6 +197,102 @@ pytest backend/tests/ --cov=backend/core --cov-report=html
 
 All 79 tests should pass ✓
 
+## Smoke Test and CI
+
+This repository includes an automated smoke test that validates the PDF conversion pipeline end-to-end on every push and pull request.
+
+### Running the Smoke Test Locally
+
+The smoke test runs a complete conversion using a known fixture PDF and validates the output.
+
+**Quick start with Makefile:**
+```bash
+# Install dependencies
+make install
+
+# Run smoke test
+make smoke-test
+```
+
+**Manual commands:**
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run smoke test
+python scripts/smoke_convert.py
+```
+
+**What the smoke test does:**
+1. Reads `testdata/input.pdf` (a minimal chord chart fixture)
+2. Runs the actual conversion pipeline (same code as production)
+3. Writes converted PDF to `artifacts/output.pdf`
+4. Writes structured logs to `artifacts/smoke.log` (JSONL format)
+5. Performs sanity checks (output exists, size > 100 bytes)
+6. Exits with code 0 on success, 1 on failure
+
+**Output location:**
+- `artifacts/output.pdf` - Converted PDF result
+- `artifacts/smoke.log` - Structured JSONL logs with timestamps, errors, and stack traces
+
+### GitHub Actions CI
+
+The smoke test runs automatically on:
+- Every push to `main` branch
+- Every push to branches starting with `claude/`
+- Every pull request to `main`
+
+**Workflow file:** `.github/workflows/ci.yml`
+
+**On failure:**
+- Job fails with non-zero exit code
+- Artifacts (output.pdf and smoke.log) are uploaded and retained for 7 days
+- View artifacts in the GitHub Actions run summary
+
+**On success:**
+- Artifacts are uploaded and retained for 3 days
+- Job passes and can gate deployments
+
+**Finding artifacts in GitHub Actions:**
+1. Go to the "Actions" tab in GitHub
+2. Click on a workflow run
+3. Scroll down to the "Artifacts" section
+4. Download `smoke-test-artifacts` (on failure) or `smoke-test-success-artifacts` (on success)
+
+### Gating Vercel Deployments (Optional)
+
+To ensure Vercel only deploys when the smoke test passes:
+
+**Option 1: Vercel GitHub Integration**
+1. Go to your Vercel project settings
+2. Navigate to "Git" → "Deploy Hooks"
+3. Enable "Only deploy when required checks pass"
+4. The CI workflow will automatically gate deployments
+
+**Option 2: Add smoke test to Vercel build command**
+
+Edit `vercel.json` to include the smoke test in the build:
+```json
+{
+  "buildCommand": "python scripts/smoke_convert.py && echo 'Smoke test passed'"
+}
+```
+
+**Option 3: GitHub branch protection**
+1. Go to repository Settings → Branches
+2. Add branch protection rule for `main`
+3. Enable "Require status checks to pass before merging"
+4. Select "PDF Conversion Smoke Test" as a required check
+
+### Regenerating Test Fixture
+
+If you need to regenerate the test fixture PDF:
+```bash
+python scripts/generate_test_fixture.py
+```
+
+This creates a minimal chord chart at `testdata/input.pdf` with sample chords (C, F, G, Am, Dm, G7, etc.).
+
 ## API Documentation
 
 ### Endpoints
