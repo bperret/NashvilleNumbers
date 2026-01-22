@@ -4,14 +4,12 @@ Unit tests for chord_parser module
 Tests chord recognition, parsing, and validation logic.
 """
 
-import pytest
 from backend.core.chord_parser import (
     parse_chord,
     is_likely_chord,
     extract_chords_from_text,
     normalize_enharmonic,
-    get_chord_info,
-    Chord
+    get_chord_info
 )
 
 
@@ -167,8 +165,8 @@ class TestParseChord:
         """Test words that might look like chords but aren't."""
         # These should not parse as chords (context matters)
         # "Be" starts with B but is a word
-        result = parse_chord("Be")
         # Our parser might catch this - that's why we have is_likely_chord
+        parse_chord("Be")
 
     def test_chord_with_whitespace(self):
         """Test parsing chords with surrounding whitespace."""

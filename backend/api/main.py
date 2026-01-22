@@ -8,12 +8,11 @@ Provides endpoint for converting chord chart PDFs.
 import os
 import uuid
 import asyncio
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 

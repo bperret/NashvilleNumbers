@@ -162,10 +162,6 @@ def format_scale_degree(
         >>> format_scale_degree(4, Chord(root="F", extensions="7"), False, "major")
         '47'
     """
-    # Determine if quality should be explicitly shown
-    expected_qualities = MAJOR_KEY_QUALITIES if mode == "major" else MINOR_KEY_QUALITIES
-    expected_quality = expected_qualities.get(degree, '')
-
     # Normalize chord quality for comparison
     chord_quality = chord.quality.lower()
 
