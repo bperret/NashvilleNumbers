@@ -4,15 +4,11 @@ PDF Renderer
 Renders output PDFs with Nashville numbers replacing chord symbols.
 Preserves original layout, fonts, and formatting as much as possible.
 
-Note: pdf2image is imported lazily only when needed for scanned PDF rendering.
-This prevents import errors in serverless environments where system dependencies
-(poppler) may not be available.
+Note: reportlab, PyPDF2, and pdf2image are imported lazily only when needed.
+This prevents import errors and initialization issues in serverless environments
+during cold starts.
 """
 
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.utils import ImageReader
-from PyPDF2 import PdfReader, PdfWriter
 import io
 from typing import List, Dict, Any
 from backend.core.text_pdf_handler import ChordAnnotation, get_font_mapping, estimate_text_width
@@ -43,6 +39,15 @@ def render_text_pdf_with_nashville(
     Raises:
         Exception: If rendering fails
     """
+    # Lazy import to avoid FUNCTION_INVOCATION_FAILED in serverless environments
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+    except ImportError as e:
+        raise Exception(
+            "PyPDF2 dependency not available. This feature requires PyPDF2. "
+            f"Import error: {str(e)}"
+        )
+
     try:
         # Read original PDF
         pdf_reader = PdfReader(original_pdf_path)
@@ -65,8 +70,8 @@ def render_text_pdf_with_nashville(
                 page_width = metadata['page_sizes'][page_num]['width']
                 page_height = metadata['page_sizes'][page_num]['height']
             else:
-                # Fallback to letter size
-                page_width, page_height = letter
+                # Fallback to letter size (8.5 x 11 inches = 612 x 792 points)
+                page_width, page_height = 612, 792
 
             # Create overlay with Nashville numbers
             if page_num in chords_by_page:
@@ -110,6 +115,15 @@ def create_chord_overlay(
     Returns:
         BytesIO buffer containing the overlay PDF
     """
+    # Lazy import to avoid FUNCTION_INVOCATION_FAILED in serverless environments
+    try:
+        from reportlab.pdfgen import canvas
+    except ImportError as e:
+        raise Exception(
+            "reportlab dependency not available. This feature requires reportlab. "
+            f"Import error: {str(e)}"
+        )
+
     buffer = io.BytesIO()
 
     # Create canvas with page size
@@ -208,6 +222,15 @@ def render_scanned_pdf_with_nashville(
         )
 
     try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+    except ImportError as e:
+        raise Exception(
+            "reportlab dependency not available. This feature requires reportlab. "
+            f"Import error: {str(e)}"
+        )
+
+    try:
         # Convert PDF pages to images
         images = convert_from_path(original_pdf_path, dpi=150)
 
@@ -219,8 +242,8 @@ def render_scanned_pdf_with_nashville(
                 chords_by_page[page_num] = []
             chords_by_page[page_num].append((annotation, nashville))
 
-        # Create output PDF
-        c = canvas.Canvas(output_path, pagesize=letter)
+        # Create output PDF (letter size = 612 x 792 points)
+        c = canvas.Canvas(output_path, pagesize=(612, 792))
 
         for page_num, img in enumerate(images):
             # Get page size
@@ -228,7 +251,8 @@ def render_scanned_pdf_with_nashville(
                 page_width = metadata['page_sizes'][page_num]['width']
                 page_height = metadata['page_sizes'][page_num]['height']
             else:
-                page_width, page_height = letter
+                # Fallback to letter size (8.5 x 11 inches = 612 x 792 points)
+                page_width, page_height = 612, 792
 
             c.setPageSize((page_width, page_height))
 
