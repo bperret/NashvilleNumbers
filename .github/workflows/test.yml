@@ -1,0 +1,65 @@
+name: Test Nashville Numbers Converter
+
+on:
+  push:
+    branches: [ main, claude/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Create sample PDFs
+      run: |
+        python backend/tests/create_sample_pdf.py
+
+    - name: Run unit tests
+      run: |
+        pytest backend/tests/test_chord_parser.py backend/tests/test_nashville_converter.py -v
+
+    - name: Run integration tests
+      run: |
+        pytest backend/tests/integration/ -v
+
+    - name: Test sample conversions
+      run: |
+        python -m backend.tests.cli_test_runner backend/tests/fixtures/input/sample_simple.pdf --key G --mode major
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 mypy
+
+    - name: Check code formatting with black
+      run: |
+        black --check backend/
+
+    - name: Lint with flake8
+      run: |
+        flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 backend/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics

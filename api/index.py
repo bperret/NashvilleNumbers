@@ -21,7 +21,7 @@ for path in [project_root, cwd]:
 
 # Import and directly export the FastAPI app
 # Vercel's Python runtime will automatically handle ASGI apps
-from backend.api.main import app
+from backend.app.main import app
 
 # For Vercel compatibility, also provide the app as 'handler'
 handler = app
