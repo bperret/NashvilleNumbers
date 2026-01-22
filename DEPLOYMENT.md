@@ -1,266 +1,396 @@
 # Deployment Guide
 
-This application requires a **hybrid deployment** because the backend needs system dependencies (Tesseract OCR, poppler-utils) that aren't available on Vercel.
+This application is configured for **single-platform deployment on Vercel** with full-stack support (frontend + backend API).
 
-## Recommended Deployment Strategy
+## Overview
 
-### Frontend → Vercel (Static Site)
-### Backend → Railway/Render/Fly.io (Docker Support)
-
----
-
-## Option 1: Railway (Recommended)
-
-Railway supports Docker and all system dependencies out of the box.
-
-### Backend Deployment (Railway)
-
-1. **Create a Railway account** at https://railway.app
-2. **Deploy from GitHub:**
-   ```bash
-   # Railway will auto-detect the Dockerfile
-   # Click "New Project" → "Deploy from GitHub"
-   # Select your repository
-   ```
-3. **Set the root directory** to `/` (Railway will use the Dockerfile)
-4. **Note your Railway API URL** (e.g., `https://your-app.up.railway.app`)
-
-### Frontend Deployment (Vercel)
-
-1. **Deploy to Vercel:**
-   ```bash
-   # From your local machine
-   vercel --prod
-   ```
-
-2. **Update the frontend to use your Railway backend:**
-
-   Edit `frontend/index.html` line 422 and replace with your Railway URL:
-   ```javascript
-   const apiUrl = 'https://your-app.up.railway.app/convert';
-   ```
-
-3. **Enable CORS on Railway backend:**
-
-   Update `backend/api/main.py` line 38:
-   ```python
-   allow_origins=["https://your-vercel-domain.vercel.app"],
-   ```
-
-4. **Redeploy both services**
+- **Frontend**: Static HTML/CSS/JS served from `/frontend`
+- **Backend**: Python FastAPI serverless functions in `/api`
+- **Platform**: Vercel (handles both frontend and backend)
+- **PDF Support**: Text-based PDFs only (no OCR for scanned images)
 
 ---
 
-## Option 2: Render
+## Quick Deploy to Vercel
 
-Similar to Railway, Render supports Docker deployments.
+### Prerequisites
 
-### Backend Deployment (Render)
+1. A [Vercel account](https://vercel.com/signup) (free tier works)
+2. Git repository hosted on GitHub, GitLab, or Bitbucket
 
-1. **Create a Render account** at https://render.com
-2. **New Web Service:**
-   - Connect your GitHub repo
-   - Select "Docker" as the environment
-   - Set the root directory to `/`
-   - Render will auto-detect the Dockerfile
-3. **Note your Render API URL** (e.g., `https://your-app.onrender.com`)
+### Deployment Steps
 
-### Frontend Deployment (Vercel)
+1. **Connect your repository to Vercel:**
+   - Go to https://vercel.com/new
+   - Import your Git repository
+   - Vercel will auto-detect the configuration from `vercel.json`
 
-Same steps as Option 1, but use your Render URL instead.
+2. **Deploy:**
+   - Click "Deploy"
+   - Vercel will build and deploy both frontend and backend
+   - You'll get a URL like `https://your-app.vercel.app`
 
----
+3. **Test:**
+   - Visit your Vercel URL
+   - Upload a text-based PDF chord chart
+   - Convert and download the Nashville Numbers version
 
-## Option 3: Fly.io
-
-Best for global edge deployment.
-
-### Backend Deployment (Fly.io)
-
-1. **Install Fly CLI:**
-   ```bash
-   curl -L https://fly.io/install.sh | sh
-   ```
-
-2. **Login and launch:**
-   ```bash
-   fly auth login
-   fly launch
-   ```
-
-3. **Deploy:**
-   ```bash
-   fly deploy
-   ```
-
-4. **Get your app URL:**
-   ```bash
-   fly status
-   ```
-
-### Frontend Deployment (Vercel)
-
-Same steps as Option 1, but use your Fly.io URL.
+That's it! Your app is live.
 
 ---
 
-## Option 4: All-in-One on Railway/Render
+## Manual Deployment with Vercel CLI
 
-Deploy both frontend and backend together on Railway or Render using Docker Compose or nginx.
+If you prefer using the command line:
 
-### Railway
+### Install Vercel CLI
 
-1. Add a `railway.toml`:
-   ```toml
-   [build]
-   builder = "dockerfile"
-   dockerfilePath = "Dockerfile"
+```bash
+npm install -g vercel
+```
 
-   [deploy]
-   startCommand = "docker-compose up"
-   ```
+### Login to Vercel
 
-2. Deploy from GitHub on Railway
+```bash
+vercel login
+```
 
-### Render
+### Deploy
 
-1. Use the existing `docker-compose.yml`
-2. Deploy as a "Background Worker" on Render
-3. Expose port 3000 for the frontend
+```bash
+# From project root
+vercel --prod
+```
+
+The CLI will:
+1. Build the Python serverless functions
+2. Deploy the static frontend
+3. Configure routes automatically
+4. Provide you with a production URL
+
+---
+
+## How It Works
+
+### Architecture
+
+```
+┌─────────────────────────────────────┐
+│         Vercel Platform              │
+│                                      │
+│  ┌────────────┐    ┌─────────────┐  │
+│  │  Frontend  │    │   Backend   │  │
+│  │  (Static)  │───▶│ (Serverless)│  │
+│  │            │    │   Python    │  │
+│  └────────────┘    └─────────────┘  │
+│                                      │
+│  Routes:                             │
+│  /           → frontend/index.html   │
+│  /api/*      → api/index.py          │
+└─────────────────────────────────────┘
+```
+
+### What Happens on Vercel
+
+1. **Build Phase:**
+   - Vercel detects `api/index.py` and builds Python serverless function
+   - Static files from `/frontend` are prepared for CDN serving
+   - Dependencies from `requirements.txt` are installed
+
+2. **Runtime:**
+   - Frontend requests go to static files (instant CDN delivery)
+   - API requests to `/api/*` invoke the Python serverless function
+   - Each API call runs in an isolated serverless container
+   - Results are streamed back to the client
+
+3. **Scaling:**
+   - Automatic scaling based on traffic
+   - No server management required
+   - Pay only for actual usage
+
+---
+
+## Configuration Files
+
+### `vercel.json`
+
+Configures routing and builds:
+
+```json
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "frontend/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/$1"
+    }
+  ]
+}
+```
+
+### `requirements.txt`
+
+Python dependencies installed by Vercel:
+
+```
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pdfplumber==0.10.3
+reportlab==4.0.9
+PyPDF2==3.0.1
+Pillow==10.2.0
+# ... other dependencies
+```
+
+---
+
+## Limitations
+
+### Text-Based PDFs Only
+
+**OCR is disabled** because Vercel's serverless environment doesn't support system dependencies like Tesseract OCR.
+
+✅ **Supported:** PDFs with selectable text (most chord charts)
+❌ **Not Supported:** Scanned images or photos of chord charts
+
+If you upload a scanned PDF, you'll get an error message asking for a text-based version.
+
+### Alternative for Scanned PDFs
+
+If you need OCR support:
+
+1. **Use a separate OCR service** (e.g., Google Cloud Vision API, AWS Textract)
+2. **Deploy backend to Docker platform** (Railway, Render, Fly.io) with system dependencies
+3. **Pre-process PDFs** using online OCR tools before uploading
 
 ---
 
 ## Environment Variables
 
-### Backend (Railway/Render/Fly)
+### Optional Configuration
 
-No environment variables needed for MVP. For production:
-- `ALLOWED_ORIGINS` - Comma-separated list of frontend URLs
-- `MAX_FILE_SIZE` - Maximum PDF size in bytes (default: 10MB)
-- `TEMP_DIR` - Temporary file storage path (default: /tmp/nashville_converter)
+You can set these in the Vercel dashboard under "Settings" → "Environment Variables":
 
-### Frontend (Vercel)
+- `MAX_FILE_SIZE`: Maximum PDF size in bytes (default: 10485760 = 10MB)
+- `TEMP_DIR`: Temporary file storage path (default: `/tmp/nashville_converter`)
 
-No build-time environment variables needed. The API URL is hardcoded in `index.html`.
+### CORS Settings
 
-For production, consider using environment variables:
-```javascript
-const apiUrl = process.env.API_URL || 'http://localhost:8000/convert';
+By default, CORS is open (`allow_origins=["*"]`). For production, you may want to restrict this.
+
+Edit `backend/api/main.py` line 38:
+
+```python
+allow_origins=["https://your-app.vercel.app"],
+```
+
+Then redeploy:
+
+```bash
+git commit -am "Restrict CORS"
+git push
+# Vercel auto-deploys on push
 ```
 
 ---
 
-## Why Not Vercel for Backend?
+## Monitoring & Logs
 
-Vercel's Python runtime has limitations:
-1. **No system dependencies** - Can't install Tesseract OCR or poppler-utils
-2. **50MB deployment limit** - Dependencies exceed this
-3. **Serverless architecture** - Not ideal for file processing with temporary storage
-4. **10-second timeout** - OCR processing can take longer
+### Vercel Dashboard
 
-Railway, Render, and Fly.io support full Docker containers with persistent processes.
+Access logs and metrics at https://vercel.com/dashboard:
+
+1. **Deployments:** See build logs and deployment history
+2. **Functions:** Monitor serverless function invocations
+3. **Analytics:** View traffic and performance metrics
+
+### Command Line Logs
+
+```bash
+# Stream logs in real-time
+vercel logs --follow
+
+# View specific deployment logs
+vercel logs [deployment-url]
+```
 
 ---
 
-## Testing Deployment
+## Troubleshooting
 
-### Test Backend API
+### Build Failures
+
+**Problem:** Vercel build fails with dependency errors
+
+**Solution:**
+- Check `requirements.txt` for incompatible versions
+- Ensure no system dependencies (like tesseract-ocr) are required
+- Review build logs in Vercel dashboard
+
+### API Timeout
+
+**Problem:** "Function execution timed out"
+
+**Solution:**
+- Vercel has a 10-second timeout for Hobby tier (60s for Pro)
+- Large PDFs may exceed this limit
+- Consider upgrading to Pro tier or splitting large PDFs
+
+### CORS Errors
+
+**Problem:** Browser blocks API requests with CORS error
+
+**Solution:**
+- Ensure `allow_origins` in `backend/api/main.py` includes your domain
+- Check that Vercel URL matches the CORS configuration
+- Clear browser cache and try again
+
+### "Scanned PDF" Error
+
+**Problem:** "This PDF appears to be a scanned image"
+
+**Solution:**
+- This is expected behavior (OCR is disabled)
+- Use a text-based PDF with selectable text
+- Or use an online OCR tool to convert the scanned PDF first
+
+---
+
+## Local Development
+
+### Run Locally
+
+```bash
+# Start backend
+uvicorn backend.api.main:app --reload --port 8000
+
+# In another terminal, serve frontend
+cd frontend
+python -m http.server 3000
+```
+
+Visit http://localhost:3000
+
+### Test API Locally
 
 ```bash
 # Health check
-curl https://your-backend-url.com/
+curl http://localhost:8000/
 
 # Test conversion
-curl -X POST https://your-backend-url.com/convert \
+curl -X POST http://localhost:8000/convert \
   -F "file=@test.pdf" \
   -F "key=G" \
   -F "mode=major" \
   --output result.pdf
 ```
 
-### Test Frontend
+---
 
-1. Open your Vercel URL in a browser
-2. Upload a PDF
-3. Select key and mode
-4. Click "Convert"
-5. Verify the converted PDF downloads
+## Cost Estimate
+
+### Vercel Pricing (as of 2024)
+
+**Hobby (Free) Tier:**
+- Unlimited websites
+- 100 GB-hours of serverless function execution
+- 100 GB bandwidth
+- Perfect for personal projects and demos
+
+**Pro Tier ($20/month):**
+- 1,000 GB-hours of serverless function execution
+- 1 TB bandwidth
+- 60-second function timeout (vs 10s for Hobby)
+- Better for production apps with traffic
+
+**Typical Usage:**
+- Converting a 5-page PDF: ~2-3 seconds execution time
+- ~1,200-1,800 conversions per month on free tier
+- Bandwidth: ~50KB per PDF, supports ~2M conversions/month
 
 ---
 
-## Monitoring
+## Security Best Practices
 
-### Railway
-- Built-in logs and metrics dashboard
-- View at https://railway.app/project/your-project
+### Production Checklist
 
-### Render
-- Logs available in the Render dashboard
-- Metrics and health checks included
+- [ ] Update CORS settings to whitelist only your domain
+- [ ] Enable Vercel's built-in DDoS protection
+- [ ] Set up rate limiting (consider adding middleware)
+- [ ] Monitor function invocations for abuse
+- [ ] Keep dependencies updated (automated with Dependabot)
+- [ ] Use environment variables for sensitive config
 
-### Fly.io
-- Use `fly logs` to view logs
-- Metrics at https://fly.io/dashboard
+### Rate Limiting Example
 
----
+Add to `backend/api/main.py`:
 
-## Costs
-
-### Railway
-- Free tier: 500 hours/month ($5 worth)
-- Hobby plan: $5/month for more resources
-
-### Render
-- Free tier: Available with limitations
-- Starter plan: $7/month
-
-### Fly.io
-- Free tier: 3 shared VMs
-- Pay-as-you-go after that
-
-### Vercel (Frontend)
-- Free tier: Unlimited for personal projects
-- Pro: $20/month for commercial use
-
----
-
-## Troubleshooting
-
-### CORS Errors
-Update `backend/api/main.py` line 38 with your Vercel domain:
 ```python
-allow_origins=["https://your-app.vercel.app"],
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+@app.post("/convert")
+@limiter.limit("10/minute")
+async def convert_pdf(...):
+    # ... existing code
 ```
 
-### Backend Not Responding
-Check logs on your deployment platform:
+---
+
+## Updates & Maintenance
+
+### Automatic Deployments
+
+Vercel automatically deploys when you push to your Git repository:
+
 ```bash
-# Railway: View in dashboard
-# Render: View in dashboard
-# Fly.io: fly logs
+git add .
+git commit -m "Update feature"
+git push origin main
+# Vercel automatically deploys
 ```
 
-### File Upload Fails
-Ensure the backend URL in `frontend/index.html` is correct (line 422-424).
+### Manual Deployments
+
+```bash
+vercel --prod
+```
+
+### Rollback
+
+```bash
+# List deployments
+vercel ls
+
+# Rollback to specific deployment
+vercel rollback [deployment-url]
+```
 
 ---
 
-## Security Notes
+## Need Help?
 
-1. **CORS**: In production, restrict `allow_origins` to your frontend domain only
-2. **File Upload**: 10MB limit is enforced server-side
-3. **Rate Limiting**: Consider adding rate limiting for production (e.g., using FastAPI rate limiting middleware)
-4. **HTTPS**: All deployment platforms provide free SSL certificates
+- **Vercel Docs:** https://vercel.com/docs
+- **FastAPI Docs:** https://fastapi.tiangolo.com/
+- **Project Issues:** [Your GitHub Issues Page]
 
 ---
-
-## Next Steps
-
-1. Choose a deployment platform (Railway recommended)
-2. Deploy backend to Railway/Render/Fly
-3. Update frontend with backend API URL
-4. Deploy frontend to Vercel
-5. Test end-to-end conversion
-6. Update CORS settings for security
 
 Happy deploying! 🚀
