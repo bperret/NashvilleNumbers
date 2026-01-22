@@ -45,10 +45,19 @@ pdf_processor = PDFProcessor()
 
 # Temporary file storage directory
 TEMP_DIR = Path("/tmp/nashville_converter")
-TEMP_DIR.mkdir(exist_ok=True)
 
 # File size limit (10 MB)
 MAX_FILE_SIZE = 10 * 1024 * 1024
+
+
+def ensure_temp_dir():
+    """
+    Ensure temp directory exists (lazy initialization).
+
+    This is called on-demand rather than at module load time to avoid
+    filesystem errors during serverless cold starts.
+    """
+    TEMP_DIR.mkdir(exist_ok=True)
 
 
 # Pydantic models for API responses
@@ -179,6 +188,9 @@ async def convert_pdf(
             detail=f"Invalid mode: {mode}. Must be 'major' or 'minor'."
         )
 
+    # Ensure temp directory exists (lazy initialization for serverless)
+    ensure_temp_dir()
+
     # Generate unique IDs for temp files
     file_id = str(uuid.uuid4())
     input_path = TEMP_DIR / f"input_{file_id}.pdf"
@@ -262,6 +274,9 @@ async def validate_pdf_endpoint(
     """
     # Validate file
     validate_pdf_file(file)
+
+    # Ensure temp directory exists (lazy initialization for serverless)
+    ensure_temp_dir()
 
     # Generate unique ID for temp file
     file_id = str(uuid.uuid4())
