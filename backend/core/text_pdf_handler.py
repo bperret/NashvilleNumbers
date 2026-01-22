@@ -5,7 +5,6 @@ Handles extraction and processing of text-based PDFs using pdfplumber.
 Extracts chords with their bounding box coordinates for precise replacement.
 """
 
-import pdfplumber
 from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 from backend.core.chord_parser import parse_chord, is_likely_chord, Chord
@@ -37,6 +36,15 @@ def extract_chords_from_text_pdf(pdf_path: str) -> Tuple[List[ChordAnnotation], 
     Raises:
         Exception: If PDF cannot be opened or processed
     """
+    # Lazy import to avoid FUNCTION_INVOCATION_FAILED in serverless environments
+    try:
+        import pdfplumber
+    except ImportError as e:
+        raise Exception(
+            "pdfplumber dependency not available. This feature requires pdfplumber. "
+            f"Import error: {str(e)}"
+        )
+
     chords = []
     metadata = {}
 
@@ -111,6 +119,13 @@ def detect_if_text_pdf(pdf_path: str, min_text_threshold: int = 50) -> bool:
     Returns:
         True if the PDF appears to be text-based, False otherwise
     """
+    # Lazy import to avoid FUNCTION_INVOCATION_FAILED in serverless environments
+    try:
+        import pdfplumber
+    except ImportError:
+        # If pdfplumber is not available, assume it's not a text PDF
+        return False
+
     try:
         with pdfplumber.open(pdf_path) as pdf:
             # Check first page
