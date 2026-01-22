@@ -438,8 +438,19 @@
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Conversion failed');
+                    let errorMessage = 'Conversion failed';
+                    let text = '';
+                    try {
+                        // Read response as text first
+                        text = await response.text();
+                        // Try to parse as JSON
+                        const errorData = JSON.parse(text);
+                        errorMessage = errorData.detail || errorMessage;
+                    } catch (parseError) {
+                        // If parsing fails, use the text directly or status code
+                        errorMessage = text || `Server error (${response.status})`;
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 // Get the converted PDF
