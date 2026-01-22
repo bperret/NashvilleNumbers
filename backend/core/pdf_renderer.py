@@ -3,13 +3,16 @@ PDF Renderer
 
 Renders output PDFs with Nashville numbers replacing chord symbols.
 Preserves original layout, fonts, and formatting as much as possible.
+
+Note: pdf2image is imported lazily only when needed for scanned PDF rendering.
+This prevents import errors in serverless environments where system dependencies
+(poppler) may not be available.
 """
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
 from PyPDF2 import PdfReader, PdfWriter
-from pdf2image import convert_from_path
 import io
 from typing import List, Dict, Any
 from backend.core.text_pdf_handler import ChordAnnotation, get_font_mapping, estimate_text_width
@@ -194,6 +197,16 @@ def render_scanned_pdf_with_nashville(
     Raises:
         Exception: If rendering fails
     """
+    # Lazy import to avoid loading dependencies in serverless environments
+    try:
+        from pdf2image import convert_from_path
+    except ImportError as e:
+        raise Exception(
+            "pdf2image dependency not available. This feature requires pdf2image "
+            "with system dependency poppler. "
+            f"Import error: {str(e)}"
+        )
+
     try:
         # Convert PDF pages to images
         images = convert_from_path(original_pdf_path, dpi=150)
