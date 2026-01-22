@@ -13,28 +13,95 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            position: relative;
+            overflow: hidden;
         }
 
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                /* Music notes scattered */
+                radial-gradient(circle at 15% 20%, transparent 20px, transparent 21px),
+                radial-gradient(circle at 85% 30%, transparent 15px, transparent 16px),
+                radial-gradient(circle at 25% 70%, transparent 18px, transparent 19px),
+                radial-gradient(circle at 75% 80%, transparent 20px, transparent 21px),
+                radial-gradient(circle at 50% 15%, transparent 16px, transparent 17px),
+                radial-gradient(circle at 90% 65%, transparent 17px, transparent 18px);
+            opacity: 0.03;
+            pointer-events: none;
+        }
+
+        /* Bass guitar silhouettes */
+        .music-decoration {
+            position: fixed;
+            opacity: 0.04;
+            color: #c0c0c0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bass-guitar-1 {
+            font-size: 300px;
+            top: -50px;
+            left: -100px;
+            transform: rotate(-25deg);
+        }
+
+        .bass-guitar-2 {
+            font-size: 250px;
+            bottom: -80px;
+            right: -80px;
+            transform: rotate(35deg);
+        }
+
+        .music-notes {
+            position: fixed;
+            font-size: 40px;
+            opacity: 0.06;
+            color: #ffffff;
+        }
+
+        .note-1 { top: 10%; left: 12%; transform: rotate(-15deg); }
+        .note-2 { top: 25%; right: 18%; transform: rotate(20deg); }
+        .note-3 { bottom: 15%; left: 20%; transform: rotate(10deg); }
+        .note-4 { bottom: 30%; right: 15%; transform: rotate(-25deg); }
+        .note-5 { top: 50%; left: 8%; transform: rotate(30deg); }
+        .note-6 { top: 60%; right: 10%; transform: rotate(-10deg); }
+
         .container {
-            background: white;
+            background: linear-gradient(145deg, #f5f5f5 0%, #e8e8e8 50%, #f0f0f0 100%);
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.1);
             max-width: 600px;
             width: 100%;
             padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            z-index: 1;
         }
 
         h1 {
-            color: #333;
+            color: #1a1a1a;
             font-size: 28px;
             margin-bottom: 10px;
             text-align: center;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
         .subtitle {
@@ -45,31 +112,41 @@
         }
 
         .upload-area {
-            border: 3px dashed #667eea;
+            border: 3px dashed #888;
             border-radius: 10px;
             padding: 40px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
             margin-bottom: 20px;
-            background: #f8f9ff;
+            background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 100%);
+            box-shadow:
+                inset 0 2px 4px rgba(0, 0, 0, 0.05),
+                0 1px 2px rgba(255, 255, 255, 0.8);
         }
 
         .upload-area:hover {
-            border-color: #764ba2;
-            background: #f0f1ff;
+            border-color: #555;
+            background: linear-gradient(145deg, #fafafa 0%, #f0f0f0 100%);
+            box-shadow:
+                inset 0 2px 4px rgba(0, 0, 0, 0.08),
+                0 2px 4px rgba(255, 255, 255, 0.9);
         }
 
         .upload-area.drag-over {
-            border-color: #764ba2;
-            background: #e8e9ff;
+            border-color: #333;
+            background: linear-gradient(145deg, #f5f5f5 0%, #e8e8e8 100%);
             transform: scale(1.02);
+            box-shadow:
+                inset 0 3px 6px rgba(0, 0, 0, 0.1),
+                0 3px 6px rgba(255, 255, 255, 1);
         }
 
         .upload-icon {
             font-size: 48px;
-            color: #667eea;
+            color: #666;
             margin-bottom: 10px;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
         }
 
         .upload-text {
@@ -102,50 +179,70 @@
         select {
             width: 100%;
             padding: 12px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid #ccc;
             border-radius: 8px;
             font-size: 16px;
-            color: #333;
-            background: white;
+            color: #1a1a1a;
+            background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 100%);
             cursor: pointer;
-            transition: border-color 0.3s ease;
+            transition: all 0.3s ease;
+            box-shadow:
+                inset 0 1px 3px rgba(0, 0, 0, 0.08),
+                0 1px 1px rgba(255, 255, 255, 0.8);
         }
 
         select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #666;
+            box-shadow:
+                inset 0 1px 3px rgba(0, 0, 0, 0.1),
+                0 0 0 3px rgba(100, 100, 100, 0.1);
         }
 
         .button {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
+            background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 50%, #000000 100%);
+            color: #ffffff;
+            border: 1px solid #444;
             border-radius: 8px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s ease;
             margin-top: 10px;
+            box-shadow:
+                0 4px 8px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
         }
 
         .button:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            background: linear-gradient(145deg, #333333 0%, #222222 50%, #111111 100%);
+            box-shadow:
+                0 6px 12px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+            border-color: #555;
         }
 
         .button:disabled {
-            background: #ccc;
+            background: linear-gradient(145deg, #999 0%, #888 100%);
+            border-color: #777;
             cursor: not-allowed;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .file-info {
-            background: #f8f9ff;
+            background: linear-gradient(145deg, #ffffff 0%, #f5f5f5 100%);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
             display: none;
+            border: 1px solid #ddd;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .file-info.show {
@@ -204,13 +301,14 @@
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 3px solid #e0e0e0;
+            border-top: 3px solid #333;
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         @keyframes spin {
@@ -245,6 +343,16 @@
     </style>
 </head>
 <body>
+    <!-- Background music decorations -->
+    <div class="music-decoration bass-guitar-1">🎸</div>
+    <div class="music-decoration bass-guitar-2">🎸</div>
+    <div class="music-notes note-1">♪</div>
+    <div class="music-notes note-2">♫</div>
+    <div class="music-notes note-3">♪</div>
+    <div class="music-notes note-4">♫</div>
+    <div class="music-notes note-5">♪</div>
+    <div class="music-notes note-6">♬</div>
+
     <div class="container">
         <h1>Nashville Numbers Converter</h1>
         <p class="subtitle">Convert chord charts to Nashville Number System</p>
