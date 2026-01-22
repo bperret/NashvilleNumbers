@@ -3,10 +3,12 @@ OCR PDF Handler
 
 Handles extraction and processing of scanned/image-based PDFs using Tesseract OCR.
 Extracts chords with their bounding box coordinates from OCR results.
+
+Note: These dependencies are optional and only loaded when OCR functions are called.
+This prevents import errors in serverless environments where system dependencies
+(tesseract-ocr, poppler) may not be available.
 """
 
-import pytesseract
-from pdf2image import convert_from_path
 from PIL import Image
 from typing import List, Dict, Any, Tuple
 from backend.core.chord_parser import parse_chord, is_likely_chord
@@ -27,6 +29,17 @@ def extract_chords_from_scanned_pdf(pdf_path: str, dpi: int = 150) -> Tuple[List
     Raises:
         Exception: If PDF cannot be processed or Tesseract is not installed
     """
+    # Lazy import to avoid loading dependencies in serverless environments
+    try:
+        import pytesseract
+        from pdf2image import convert_from_path
+    except ImportError as e:
+        raise Exception(
+            "OCR dependencies not available. This feature requires pytesseract and pdf2image "
+            "with system dependencies (tesseract-ocr, poppler). "
+            f"Import error: {str(e)}"
+        )
+
     chords = []
     metadata = {}
 
@@ -146,6 +159,7 @@ def check_tesseract_available() -> bool:
         True if Tesseract is available, False otherwise
     """
     try:
+        import pytesseract
         pytesseract.get_tesseract_version()
         return True
     except Exception:
