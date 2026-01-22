@@ -16,9 +16,9 @@ from typing import Dict, Any
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from backend.core.pdf_processor import PDFProcessor
-from backend.core.text_pdf_handler import extract_chords_from_text_pdf, detect_if_text_pdf
-from backend.core.pdf_renderer import render_text_pdf_with_nashville
+from backend.core.pdf_processor import PDFProcessor  # noqa: E402
+from backend.core.text_pdf_handler import extract_chords_from_text_pdf, detect_if_text_pdf  # noqa: E402
+from backend.core.pdf_renderer import render_text_pdf_with_nashville  # noqa: E402
 
 
 # Fixtures directory paths

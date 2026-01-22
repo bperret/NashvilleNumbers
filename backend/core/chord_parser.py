@@ -7,7 +7,7 @@ Supports standard Western music chord notation.
 
 import re
 from dataclasses import dataclass
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
 
 @dataclass

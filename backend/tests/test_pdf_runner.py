@@ -13,17 +13,16 @@ Example:
 """
 
 import sys
-import os
 import argparse
 import traceback
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from backend.core.pdf_processor import PDFProcessor
+from backend.core.pdf_processor import PDFProcessor  # noqa: E402
 
 
 class Colors:
