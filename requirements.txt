@@ -12,7 +12,6 @@ PyPDF2==3.0.1
 Pillow==10.2.0
 pdf2image==1.16.3
 pytesseract==0.3.10
-cffi==1.16.0
 
 # Testing
 pytest==7.4.4
