@@ -387,14 +387,19 @@ async def get_diagnostics():
     try:
         results = run_all_diagnostics()
         results["trace_id"] = trace_id
+        # Return 200 OK for successful diagnostics (even if some components failed)
         return results
     except Exception as e:
-        return {
-            "trace_id": trace_id,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        }
+        # Return 500 with error details when diagnostics itself fails
+        return JSONResponse(
+            status_code=500,
+            content={
+                "trace_id": trace_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            }
+        )
 
 
 @api_router.post("/convert")
