@@ -172,6 +172,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Simple ping endpoint for health checks (no dependencies)
+@app.get("/ping")
+@app.get("/api/ping")
+async def ping():
+    """Simple health check that requires no heavy dependencies."""
+    return {
+        "status": "ok",
+        "message": "Nashville Numbers Converter API is running",
+        "python_version": sys.version.split()[0]
+    }
+
 # Create API router for all endpoints
 # This allows mounting at both "/" and "/api" for compatibility
 api_router = APIRouter()
