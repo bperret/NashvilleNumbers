@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request, APIRouter
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -172,6 +172,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Create API router for all endpoints
+# This allows mounting at both "/" and "/api" for compatibility
+api_router = APIRouter()
+
 # Initialize PDF processor
 pdf_processor = PDFProcessor()
 
@@ -256,7 +260,7 @@ def validate_pdf_file(file: UploadFile) -> None:
         )
 
 
-@app.get("/", response_model=HealthResponse)
+@api_router.get("/", response_model=HealthResponse)
 async def root():
     """
     Health check endpoint.
@@ -271,7 +275,7 @@ async def root():
     }
 
 
-@app.get("/keys")
+@api_router.get("/keys")
 async def get_keys():
     """
     Get list of supported musical keys.
@@ -284,7 +288,7 @@ async def get_keys():
     }
 
 
-@app.get("/diagnostics")
+@api_router.get("/diagnostics")
 async def get_diagnostics():
     """
     Run comprehensive diagnostics on all components.
@@ -310,7 +314,7 @@ async def get_diagnostics():
         }
 
 
-@app.post("/convert")
+@api_router.post("/convert")
 async def convert_pdf(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -483,7 +487,7 @@ async def convert_pdf(
         )
 
 
-@app.post("/validate")
+@api_router.post("/validate")
 async def validate_pdf_endpoint(
     file: UploadFile = File(...)
 ):
@@ -555,6 +559,13 @@ async def validate_pdf_endpoint(
 #                 file_path.unlink()
 #         except Exception:
 #             pass
+
+
+# Mount the API router at both "/" and "/api" for compatibility
+# - "/" is used for local development (localhost:8000/convert)
+# - "/api" is used for Vercel deployment (domain.com/api/convert)
+app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
 
 if __name__ == "__main__":
