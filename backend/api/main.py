@@ -227,8 +227,20 @@ async def ping():
 # This allows mounting at both "/" and "/api" for compatibility
 api_router = APIRouter()
 
-# Initialize PDF processor
-pdf_processor = PDFProcessor()
+# Lazy initialization for PDF processor to avoid issues during serverless cold starts
+_pdf_processor = None
+
+def get_pdf_processor() -> PDFProcessor:
+    """
+    Get or create the PDF processor instance (lazy initialization).
+
+    This avoids initialization issues during serverless cold starts by
+    deferring processor creation until it's actually needed.
+    """
+    global _pdf_processor
+    if _pdf_processor is None:
+        _pdf_processor = PDFProcessor()
+    return _pdf_processor
 
 # Temporary file storage directory
 TEMP_DIR = Path("/tmp/nashville_converter")
@@ -489,7 +501,7 @@ async def convert_pdf(
         # Process the PDF
         current_step = "pdf_processing"
         try:
-            result = pdf_processor.process_pdf(
+            result = get_pdf_processor().process_pdf(
                 str(input_path),
                 str(output_path),
                 key=key,
@@ -506,23 +518,71 @@ async def convert_pdf(
                 }
             )
 
+        # Verify output file was created successfully
+        current_step = "output_verification"
+        if not output_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "PDF conversion completed but output file was not created",
+                    "trace_id": trace_id,
+                    "step": current_step,
+                    "suggestion": "The PDF may be corrupted or incompatible. Try a different file."
+                }
+            )
+
+        # Check output file has content
+        output_size = output_path.stat().st_size
+        if output_size == 0:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "PDF conversion produced an empty file",
+                    "trace_id": trace_id,
+                    "step": current_step,
+                    "suggestion": "The PDF may be corrupted or incompatible. Try a different file."
+                }
+            )
+
         # Schedule cleanup of input file
         background_tasks.add_task(cleanup_temp_file, str(input_path), delay_minutes=1)
 
         # Schedule cleanup of output file after 15 minutes
         background_tasks.add_task(cleanup_temp_file, str(output_path), delay_minutes=15)
 
+        # Prepare response headers safely
+        current_step = "response_preparation"
+        try:
+            total_chords = str(result.get('total_chords_converted', 0)) if result else "0"
+            processing_method = result.get('processing_method', 'unknown') if result else 'unknown'
+            output_filename = f"nashville_{file.filename}" if file.filename else "nashville_converted.pdf"
+        except Exception:
+            total_chords = "0"
+            processing_method = "unknown"
+            output_filename = "nashville_converted.pdf"
+
         # Return the converted PDF
-        return FileResponse(
-            path=str(output_path),
-            media_type="application/pdf",
-            filename=f"nashville_{file.filename}",
-            headers={
-                "X-Conversion-Stats": str(result.get('total_chords_converted', 0)),
-                "X-Processing-Method": result.get('processing_method', 'unknown'),
-                "X-Trace-ID": trace_id
-            }
-        )
+        current_step = "file_response"
+        try:
+            return FileResponse(
+                path=str(output_path),
+                media_type="application/pdf",
+                filename=output_filename,
+                headers={
+                    "X-Conversion-Stats": total_chords,
+                    "X-Processing-Method": processing_method,
+                    "X-Trace-ID": trace_id
+                }
+            )
+        except Exception as file_error:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": f"Failed to create file response: {str(file_error)}",
+                    "trace_id": trace_id,
+                    "step": current_step
+                }
+            )
 
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -599,11 +659,37 @@ async def validate_pdf_endpoint(
     Returns:
         Validation results
     """
+    # Generate trace ID for this request
+    trace_id = generate_trace_id()
+    current_step = "initialization"
+
     # Validate file
-    validate_pdf_file(file)
+    try:
+        current_step = "file_validation"
+        validate_pdf_file(file)
+    except HTTPException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail={
+                "error": e.detail if isinstance(e.detail, str) else str(e.detail),
+                "trace_id": trace_id,
+                "step": current_step
+            }
+        )
 
     # Ensure temp directory exists (lazy initialization for serverless)
-    ensure_temp_dir()
+    current_step = "temp_directory_setup"
+    try:
+        ensure_temp_dir()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Failed to create temp directory: {str(e)}",
+                "trace_id": trace_id,
+                "step": current_step
+            }
+        )
 
     # Generate unique ID for temp file
     file_id = str(uuid.uuid4())
@@ -611,32 +697,84 @@ async def validate_pdf_endpoint(
 
     try:
         # Save uploaded file temporarily
+        current_step = "file_upload"
         contents = await file.read()
         if len(contents) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail=f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f} MB."
+                detail={
+                    "error": f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f} MB.",
+                    "trace_id": trace_id,
+                    "step": current_step,
+                    "file_size_bytes": len(contents)
+                }
             )
 
+        current_step = "file_save"
         with open(input_path, "wb") as f:
             f.write(contents)
 
         # Validate the PDF
-        validation_result = pdf_processor.validate_pdf(str(input_path))
+        current_step = "pdf_validation"
+        validation_result = get_pdf_processor().validate_pdf(str(input_path))
 
-        # Clean up
-        input_path.unlink()
+        # Clean up safely
+        try:
+            if input_path.exists():
+                input_path.unlink()
+        except Exception:
+            pass  # Ignore cleanup errors
+
+        # Add trace_id to the response
+        if isinstance(validation_result, dict):
+            validation_result['trace_id'] = trace_id
 
         return validation_result
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        # Clean up safely
+        try:
+            if input_path.exists():
+                input_path.unlink()
+        except Exception:
+            pass
+        raise
+
     except Exception as e:
-        # Clean up
-        if input_path.exists():
-            input_path.unlink()
+        # Clean up safely
+        try:
+            if input_path.exists():
+                input_path.unlink()
+        except Exception:
+            pass
+
+        # Get error details safely
+        try:
+            error_msg = str(e)
+        except Exception:
+            error_msg = "Unknown error occurred"
+
+        try:
+            error_type = type(e).__name__
+        except Exception:
+            error_type = "UnknownError"
+
+        try:
+            error_traceback = traceback.format_exc()
+        except Exception:
+            error_traceback = "Traceback unavailable"
 
         raise HTTPException(
             status_code=500,
-            detail=f"Validation failed: {str(e)}"
+            detail={
+                "error": error_msg,
+                "error_type": error_type,
+                "trace_id": trace_id,
+                "step": current_step,
+                "suggestion": "Run GET /diagnostics to check component status",
+                "traceback": error_traceback
+            }
         )
 
 

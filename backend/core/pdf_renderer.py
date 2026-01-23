@@ -112,9 +112,21 @@ def render_text_pdf_with_nashville(
         if len(pdf_writer.pages) == 0:
             raise ValueError("No pages could be processed")
 
-        # Write output PDF
-        with open(output_path, 'wb') as output_file:
-            pdf_writer.write(output_file)
+        # Write output PDF with verification
+        try:
+            with open(output_path, 'wb') as output_file:
+                pdf_writer.write(output_file)
+        except Exception as write_error:
+            raise Exception(f"Failed to write output PDF file: {str(write_error)}")
+
+        # Verify the output file was created and has content
+        import os
+        if not os.path.exists(output_path):
+            raise Exception("Output PDF file was not created")
+
+        file_size = os.path.getsize(output_path)
+        if file_size == 0:
+            raise Exception("Output PDF file is empty")
 
     except Exception as e:
         error_msg = str(e)
