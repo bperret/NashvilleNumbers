@@ -57,53 +57,85 @@ def extract_chords_from_text_pdf(pdf_path: str) -> Tuple[List[ChordAnnotation], 
             }
 
             for page_num, page in enumerate(pdf.pages):
-                # Store page size
-                metadata['page_sizes'].append({
-                    'width': page.width,
-                    'height': page.height
-                })
+                try:
+                    # Store page size with fallbacks
+                    page_width = getattr(page, 'width', 612) or 612
+                    page_height = getattr(page, 'height', 792) or 792
+                    metadata['page_sizes'].append({
+                        'width': page_width,
+                        'height': page_height
+                    })
 
-                # Extract words with bounding boxes
-                words = page.extract_words()
+                    # Extract words with bounding boxes
+                    words = page.extract_words() or []
 
-                for word in words:
-                    text = word.get('text', '')
+                    for word in words:
+                        try:
+                            text = word.get('text', '')
+                            if not text:
+                                continue
 
-                    # Check if this word is likely a chord
-                    if not is_likely_chord(text):
-                        continue
+                            # Check if this word is likely a chord
+                            if not is_likely_chord(text):
+                                continue
 
-                    # Parse the chord
-                    chord = parse_chord(text)
-                    if not chord:
-                        continue
+                            # Parse the chord
+                            chord = parse_chord(text)
+                            if not chord:
+                                continue
 
-                    # Extract bounding box coordinates
-                    # pdfplumber uses (x0, top, x1, bottom) format
-                    bbox = (
-                        word['x0'],
-                        word['top'],
-                        word['x1'],
-                        word['bottom']
-                    )
+                            # Extract bounding box coordinates with defensive checks
+                            # pdfplumber uses (x0, top, x1, bottom) format
+                            x0 = word.get('x0')
+                            top = word.get('top')
+                            x1 = word.get('x1')
+                            bottom = word.get('bottom')
 
-                    # Try to extract font information
-                    font_size = word.get('height', 12.0)
-                    font_name = word.get('fontname', 'Helvetica')
+                            # Skip if any coordinate is missing
+                            if None in (x0, top, x1, bottom):
+                                continue
 
-                    annotation = ChordAnnotation(
-                        chord=chord,
-                        text=text,
-                        page_number=page_num,
-                        bbox=bbox,
-                        font_size=font_size,
-                        font_name=font_name
-                    )
+                            bbox = (x0, top, x1, bottom)
 
-                    chords.append(annotation)
+                            # Try to extract font information with defaults
+                            font_size = word.get('height') or word.get('size') or 12.0
+                            font_name = word.get('fontname') or 'Helvetica'
+
+                            # Ensure font_size is a valid number
+                            try:
+                                font_size = float(font_size)
+                                if font_size <= 0:
+                                    font_size = 12.0
+                            except (TypeError, ValueError):
+                                font_size = 12.0
+
+                            annotation = ChordAnnotation(
+                                chord=chord,
+                                text=text,
+                                page_number=page_num,
+                                bbox=bbox,
+                                font_size=font_size,
+                                font_name=font_name
+                            )
+
+                            chords.append(annotation)
+
+                        except Exception:
+                            # Skip problematic words, continue with others
+                            continue
+
+                except Exception:
+                    # Skip problematic pages, continue with others
+                    continue
 
     except Exception as e:
-        raise Exception(f"Failed to extract chords from PDF: {str(e)}")
+        error_msg = str(e)
+        if "EOF" in error_msg or "stream" in error_msg.lower():
+            raise Exception(f"PDF file appears to be corrupted: {error_msg}")
+        elif "encrypt" in error_msg.lower() or "password" in error_msg.lower():
+            raise Exception(f"PDF file is encrypted or password-protected: {error_msg}")
+        else:
+            raise Exception(f"Failed to extract chords from PDF: {error_msg}")
 
     return chords, metadata
 
