@@ -298,6 +298,36 @@
             border: 1px solid #f5c6cb;
         }
 
+        .status-message.error .error-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .status-message.error .error-trace {
+            color: #999;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+
+        .status-message.error .run-diagnostics-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #721c24;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .status-message.error .run-diagnostics-link:hover {
+            color: #4a1218;
+        }
+
         .status-message.info {
             background: #d1ecf1;
             color: #0c5460;
@@ -364,6 +394,150 @@
 
         input[type="radio"] {
             cursor: pointer;
+        }
+
+        /* Diagnostics Panel */
+        .diagnostics-panel {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(145deg, #ffffff 0%, #f5f5f5 100%);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .diagnostics-panel.show {
+            display: block;
+        }
+
+        .diagnostics-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .diagnostics-summary {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+
+        .diagnostics-summary .passed {
+            color: #155724;
+            font-weight: 600;
+        }
+
+        .diagnostics-summary .failed {
+            color: #721c24;
+            font-weight: 600;
+        }
+
+        .component-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .component-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+
+        .component-item:last-child {
+            border-bottom: none;
+        }
+
+        .component-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .component-status.ok {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .component-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .component-name {
+            font-weight: 600;
+            width: 150px;
+        }
+
+        .component-message {
+            flex: 1;
+            color: #666;
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        .component-duration {
+            color: #999;
+            font-size: 11px;
+            margin-left: 10px;
+        }
+
+        .diagnostics-footer {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            font-size: 11px;
+            color: #999;
+        }
+
+        .button-secondary {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(145deg, #f5f5f5 0%, #e8e8e8 100%);
+            color: #333;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .button-secondary:hover:not(:disabled) {
+            background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
+            border-color: #999;
+        }
+
+        .button-secondary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .close-diagnostics {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .close-diagnostics:hover {
+            color: #333;
         }
     </style>
 </head>
@@ -442,7 +616,23 @@
         </div>
 
         <div class="footer">
-            <a href="#" id="donationLink">Support this project ❤️</a>
+            <a href="#" id="donationLink">Support this project</a>
+        </div>
+
+        <button type="button" class="button-secondary" id="runDiagnosticsButton">
+            Run System Diagnostics
+        </button>
+
+        <div class="diagnostics-panel" id="diagnosticsPanel">
+            <button class="close-diagnostics" id="closeDiagnostics">&times;</button>
+            <h3>System Diagnostics</h3>
+            <div class="diagnostics-summary" id="diagnosticsSummary">
+                <span>Running diagnostics...</span>
+            </div>
+            <ul class="component-list" id="componentList">
+            </ul>
+            <div class="diagnostics-footer" id="diagnosticsFooter">
+            </div>
         </div>
     </div>
 
@@ -515,9 +705,37 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
-        function showMessage(type, text) {
+        function showMessage(type, text, details = null) {
             statusMessage.className = 'status-message show ' + type;
-            statusMessage.textContent = text;
+
+            if (type === 'error' && details) {
+                let html = `<strong>${escapeHtml(text)}</strong>`;
+
+                if (details.step) {
+                    html += `<div class="error-details">Failed at step: ${escapeHtml(details.step)}</div>`;
+                }
+
+                if (details.suggestion) {
+                    html += `<div class="error-details">${escapeHtml(details.suggestion)}</div>`;
+                }
+
+                if (details.trace_id) {
+                    html += `<div class="error-trace">Trace ID: ${escapeHtml(details.trace_id)}</div>`;
+                }
+
+                html += `<a class="run-diagnostics-link" onclick="runDiagnostics()">Run Diagnostics to check system status</a>`;
+
+                statusMessage.innerHTML = html;
+            } else {
+                statusMessage.textContent = text;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function hideMessage() {
@@ -572,18 +790,36 @@
 
                 if (!response.ok) {
                     let errorMessage = 'Conversion failed';
+                    let errorDetails = null;
                     let text = '';
                     try {
                         // Read response as text first
                         text = await response.text();
                         // Try to parse as JSON
                         const errorData = JSON.parse(text);
-                        errorMessage = errorData.detail || errorMessage;
+
+                        // Handle structured error detail (new format)
+                        if (errorData.detail && typeof errorData.detail === 'object') {
+                            errorMessage = errorData.detail.error || 'Unknown error';
+                            errorDetails = {
+                                step: errorData.detail.step,
+                                trace_id: errorData.detail.trace_id,
+                                suggestion: errorData.detail.suggestion,
+                                error_type: errorData.detail.error_type
+                            };
+                        } else if (errorData.detail) {
+                            // Handle string detail (old format)
+                            errorMessage = errorData.detail;
+                        }
                     } catch (parseError) {
                         // If parsing fails, use the text directly or status code
                         errorMessage = text || `Server error (${response.status})`;
                     }
-                    throw new Error(errorMessage);
+
+                    // Store error details for the error handler
+                    const err = new Error(errorMessage);
+                    err.details = errorDetails;
+                    throw err;
                 }
 
                 // Get the converted PDF
@@ -600,12 +836,109 @@
                 showMessage('success', 'Conversion successful! Your file is downloading...');
 
             } catch (error) {
-                showMessage('error', 'Conversion failed: ' + error.message);
+                showMessage('error', 'Conversion failed: ' + error.message, error.details);
             } finally {
                 loading.classList.remove('show');
                 convertButton.disabled = false;
             }
         });
+
+        // Diagnostics functionality
+        const diagnosticsPanel = document.getElementById('diagnosticsPanel');
+        const diagnosticsSummary = document.getElementById('diagnosticsSummary');
+        const componentList = document.getElementById('componentList');
+        const diagnosticsFooter = document.getElementById('diagnosticsFooter');
+        const runDiagnosticsButton = document.getElementById('runDiagnosticsButton');
+        const closeDiagnosticsBtn = document.getElementById('closeDiagnostics');
+
+        closeDiagnosticsBtn.addEventListener('click', () => {
+            diagnosticsPanel.classList.remove('show');
+        });
+
+        runDiagnosticsButton.addEventListener('click', runDiagnostics);
+
+        async function runDiagnostics() {
+            // Show panel with loading state
+            diagnosticsPanel.classList.add('show');
+            diagnosticsSummary.innerHTML = '<span>Running diagnostics...</span>';
+            componentList.innerHTML = '<li class="component-item">Testing components...</li>';
+            diagnosticsFooter.innerHTML = '';
+            runDiagnosticsButton.disabled = true;
+
+            try {
+                // Get the diagnostics API URL
+                const BACKEND_URL = window.BACKEND_URL || null;
+                const apiUrl = BACKEND_URL || (
+                    window.location.hostname === 'localhost' && window.location.port === '8000'
+                        ? 'http://localhost:8000/diagnostics'
+                        : '/api/diagnostics'
+                );
+
+                const response = await fetch(apiUrl, {
+                    method: 'GET'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Diagnostics request failed: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayDiagnosticsResults(data);
+
+            } catch (error) {
+                diagnosticsSummary.innerHTML = `<span class="failed">Diagnostics failed: ${escapeHtml(error.message)}</span>`;
+                componentList.innerHTML = `
+                    <li class="component-item">
+                        <div class="component-status error">!</div>
+                        <div class="component-name">Connection</div>
+                        <div class="component-message">Could not reach the backend server. Check if the server is running.</div>
+                    </li>
+                `;
+                diagnosticsFooter.innerHTML = 'Tip: Make sure your Vercel deployment is working correctly.';
+            } finally {
+                runDiagnosticsButton.disabled = false;
+            }
+        }
+
+        function displayDiagnosticsResults(data) {
+            // Summary
+            const summary = data.summary || { total: 0, passed: 0, failed: 0 };
+            diagnosticsSummary.innerHTML = `
+                <span class="passed">Passed: ${summary.passed}/${summary.total}</span>
+                <span class="failed">Failed: ${summary.failed}</span>
+                <span style="color: ${data.all_ok ? '#155724' : '#721c24'}; font-weight: bold;">
+                    ${data.all_ok ? 'All systems operational' : 'Issues detected'}
+                </span>
+            `;
+
+            // Component list
+            const components = data.components || [];
+            if (components.length === 0) {
+                componentList.innerHTML = '<li class="component-item">No components found</li>';
+            } else {
+                componentList.innerHTML = components.map(comp => `
+                    <li class="component-item">
+                        <div class="component-status ${comp.status}">${comp.status === 'ok' ? '✓' : '✗'}</div>
+                        <div class="component-name">${escapeHtml(comp.name)}</div>
+                        <div class="component-message">${escapeHtml(comp.message)}</div>
+                        <div class="component-duration">${comp.duration_ms ? comp.duration_ms.toFixed(1) + 'ms' : ''}</div>
+                    </li>
+                `).join('');
+            }
+
+            // Footer with metadata
+            const footerParts = [];
+            if (data.trace_id) {
+                footerParts.push(`Trace ID: ${data.trace_id}`);
+            }
+            if (data.timestamp) {
+                footerParts.push(`Time: ${new Date(data.timestamp).toLocaleString()}`);
+            }
+            if (data.python_version) {
+                footerParts.push(`Python: ${data.python_version.split(' ')[0]}`);
+            }
+            diagnosticsFooter.innerHTML = footerParts.join(' | ');
+        }
     </script>
 </body>
 </html>
