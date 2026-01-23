@@ -53,6 +53,10 @@ def render_text_pdf_with_nashville(
         pdf_reader = PdfReader(original_pdf_path)
         pdf_writer = PdfWriter()
 
+        # Validate inputs
+        if not pdf_reader.pages:
+            raise ValueError("PDF has no pages")
+
         # Group chords by page
         chords_by_page: Dict[int, List[tuple]] = {}
         for annotation, nashville in zip(chord_annotations, nashville_numbers):
@@ -63,40 +67,64 @@ def render_text_pdf_with_nashville(
 
         # Process each page
         for page_num in range(len(pdf_reader.pages)):
-            original_page = pdf_reader.pages[page_num]
+            try:
+                original_page = pdf_reader.pages[page_num]
 
-            # Get page size
-            if page_num < len(metadata['page_sizes']):
-                page_width = metadata['page_sizes'][page_num]['width']
-                page_height = metadata['page_sizes'][page_num]['height']
-            else:
-                # Fallback to letter size (8.5 x 11 inches = 612 x 792 points)
-                page_width, page_height = 612, 792
+                # Get page size with fallback
+                page_width, page_height = 612, 792  # Default letter size
+                if metadata and 'page_sizes' in metadata:
+                    if page_num < len(metadata['page_sizes']):
+                        page_size = metadata['page_sizes'][page_num]
+                        page_width = page_size.get('width', 612)
+                        page_height = page_size.get('height', 792)
 
-            # Create overlay with Nashville numbers
-            if page_num in chords_by_page:
-                overlay_buffer = create_chord_overlay(
-                    chords_by_page[page_num],
-                    page_width,
-                    page_height
-                )
+                # Create overlay with Nashville numbers
+                if page_num in chords_by_page and chords_by_page[page_num]:
+                    try:
+                        overlay_buffer = create_chord_overlay(
+                            chords_by_page[page_num],
+                            page_width,
+                            page_height
+                        )
 
-                # Read the overlay
-                overlay_pdf = PdfReader(overlay_buffer)
-                overlay_page = overlay_pdf.pages[0]
+                        # Read the overlay
+                        overlay_pdf = PdfReader(overlay_buffer)
+                        if overlay_pdf.pages:
+                            overlay_page = overlay_pdf.pages[0]
+                            # Merge overlay onto original page
+                            original_page.merge_page(overlay_page)
+                    except Exception as overlay_error:
+                        # Continue without overlay for this page if creation fails
+                        # The original page will still be included
+                        pass
 
-                # Merge overlay onto original page
-                original_page.merge_page(overlay_page)
+                # Add to output
+                pdf_writer.add_page(original_page)
 
-            # Add to output
-            pdf_writer.add_page(original_page)
+            except Exception as page_error:
+                # If a single page fails, try to continue with others
+                # Re-raise if it's the first/only page
+                if page_num == 0 and len(pdf_reader.pages) == 1:
+                    raise
+                continue
+
+        # Ensure we have at least one page
+        if len(pdf_writer.pages) == 0:
+            raise ValueError("No pages could be processed")
 
         # Write output PDF
         with open(output_path, 'wb') as output_file:
             pdf_writer.write(output_file)
 
     except Exception as e:
-        raise Exception(f"Failed to render PDF: {str(e)}")
+        error_msg = str(e)
+        # Provide more specific error messages
+        if "EOF" in error_msg or "stream" in error_msg.lower():
+            raise Exception(f"PDF file appears to be corrupted or incomplete: {error_msg}")
+        elif "encrypt" in error_msg.lower() or "password" in error_msg.lower():
+            raise Exception(f"PDF file is encrypted or password-protected: {error_msg}")
+        else:
+            raise Exception(f"Failed to render PDF: {error_msg}")
 
 
 def create_chord_overlay(
@@ -114,6 +142,9 @@ def create_chord_overlay(
 
     Returns:
         BytesIO buffer containing the overlay PDF
+
+    Raises:
+        Exception: If overlay creation fails
     """
     # Lazy import to avoid FUNCTION_INVOCATION_FAILED in serverless environments
     try:
@@ -124,66 +155,93 @@ def create_chord_overlay(
             f"Import error: {str(e)}"
         )
 
-    buffer = io.BytesIO()
+    try:
+        buffer = io.BytesIO()
 
-    # Create canvas with page size
-    c = canvas.Canvas(buffer, pagesize=(page_width, page_height))
+        # Validate page dimensions
+        if page_width <= 0 or page_height <= 0:
+            raise ValueError(f"Invalid page dimensions: {page_width}x{page_height}")
 
-    for annotation, nashville in page_chords:
-        # Get chord position
-        x0, y0, x1, y1 = annotation.bbox
+        # Create canvas with page size
+        c = canvas.Canvas(buffer, pagesize=(page_width, page_height))
 
-        # PDF coordinates: origin at bottom-left
-        # pdfplumber coordinates: origin at top-left
-        # Need to convert y-coordinates
-        pdf_y0 = page_height - y1  # Bottom of text box
-        pdf_y1 = page_height - y0  # Top of text box
+        for annotation, nashville in page_chords:
+            try:
+                # Get chord position with defensive checks
+                bbox = annotation.bbox
+                if not bbox or len(bbox) != 4:
+                    continue  # Skip malformed annotations
 
-        # Draw white rectangle to cover original chord
-        c.setFillColorRGB(1, 1, 1)  # White
-        c.setStrokeColorRGB(1, 1, 1)  # White border
+                x0, y0, x1, y1 = bbox
 
-        # Add a bit of padding to ensure complete coverage
-        padding = 2
-        c.rect(
-            x0 - padding,
-            pdf_y0 - padding,
-            (x1 - x0) + 2 * padding,
-            (pdf_y1 - pdf_y0) + 2 * padding,
-            fill=1,
-            stroke=0
-        )
+                # Validate bbox values
+                if None in (x0, y0, x1, y1):
+                    continue  # Skip if any coordinate is None
 
-        # Map font name to reportlab font
-        font_name = get_font_mapping(annotation.font_name)
-        font_size = annotation.font_size
+                # PDF coordinates: origin at bottom-left
+                # pdfplumber coordinates: origin at top-left
+                # Need to convert y-coordinates
+                pdf_y0 = page_height - y1  # Bottom of text box
+                pdf_y1 = page_height - y0  # Top of text box
 
-        # Estimate if Nashville number will fit in original space
-        original_width = x1 - x0
-        nashville_width = estimate_text_width(nashville, font_size, font_name)
+                # Draw white rectangle to cover original chord
+                c.setFillColorRGB(1, 1, 1)  # White
+                c.setStrokeColorRGB(1, 1, 1)  # White border
 
-        # Adjust font size if Nashville number is significantly wider
-        if nashville_width > original_width * 1.2:
-            font_size = font_size * (original_width / nashville_width) * 0.95
+                # Add a bit of padding to ensure complete coverage
+                padding = 2
+                c.rect(
+                    x0 - padding,
+                    pdf_y0 - padding,
+                    (x1 - x0) + 2 * padding,
+                    (pdf_y1 - pdf_y0) + 2 * padding,
+                    fill=1,
+                    stroke=0
+                )
 
-        # Draw Nashville number
-        c.setFillColorRGB(0, 0, 0)  # Black text
-        try:
-            c.setFont(font_name, font_size)
-        except Exception:
-            # Fallback to Helvetica if font not available
-            c.setFont('Helvetica', font_size)
+                # Map font name to reportlab font
+                font_name = get_font_mapping(annotation.font_name or "Helvetica")
+                font_size = annotation.font_size or 12.0
 
-        # Center the text vertically in the original space
-        text_y = pdf_y0 + (pdf_y1 - pdf_y0 - font_size) / 2 + font_size * 0.2
+                # Ensure font size is reasonable
+                if font_size <= 0:
+                    font_size = 12.0
 
-        # Draw the Nashville number
-        c.drawString(x0, text_y, nashville)
+                # Estimate if Nashville number will fit in original space
+                original_width = x1 - x0
+                if original_width > 0:
+                    nashville_width = estimate_text_width(nashville, font_size, font_name)
 
-    # Finalize the canvas
-    c.save()
-    buffer.seek(0)
-    return buffer
+                    # Adjust font size if Nashville number is significantly wider
+                    if nashville_width > original_width * 1.2:
+                        font_size = font_size * (original_width / nashville_width) * 0.95
+
+                # Draw Nashville number
+                c.setFillColorRGB(0, 0, 0)  # Black text
+                try:
+                    c.setFont(font_name, font_size)
+                except Exception:
+                    # Fallback to Helvetica if font not available
+                    c.setFont('Helvetica', font_size)
+
+                # Center the text vertically in the original space
+                text_y = pdf_y0 + (pdf_y1 - pdf_y0 - font_size) / 2 + font_size * 0.2
+
+                # Draw the Nashville number
+                c.drawString(x0, text_y, nashville)
+
+            except Exception as chord_error:
+                # Log but continue with other chords - don't fail entire page
+                # In production, we'd log this error
+                continue
+
+        # Finalize the canvas
+        c.save()
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        raise Exception(f"Failed to create chord overlay: {str(e)}")
 
 
 def render_scanned_pdf_with_nashville(

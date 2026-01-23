@@ -173,6 +173,45 @@ app.add_middleware(
 )
 
 
+# Global exception handler to catch any unhandled exceptions
+# This prevents FUNCTION_INVOCATION_FAILED errors in serverless environments
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch any unhandled exceptions and return a proper JSON response.
+    This prevents serverless function crashes from unhandled errors.
+    """
+    trace_id = generate_trace_id()
+
+    # Get error details safely
+    try:
+        error_msg = str(exc)
+    except Exception:
+        error_msg = "Unknown error occurred"
+
+    try:
+        error_type = type(exc).__name__
+    except Exception:
+        error_type = "UnknownError"
+
+    try:
+        error_traceback = traceback.format_exc()
+    except Exception:
+        error_traceback = "Traceback unavailable"
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": error_msg,
+            "error_type": error_type,
+            "trace_id": trace_id,
+            "suggestion": "Run GET /diagnostics to check component status",
+            "traceback": error_traceback
+        }
+    )
+
+
 # Simple ping endpoint for health checks (no dependencies)
 @app.get("/ping")
 @app.get("/api/ping")
@@ -257,6 +296,20 @@ def validate_pdf_file(file: UploadFile) -> None:
     Raises:
         HTTPException: If validation fails
     """
+    # Check if file exists
+    if file is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No file provided. Please upload a PDF file."
+        )
+
+    # Check filename
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="File has no filename. Please upload a valid PDF file."
+        )
+
     # Check file extension
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(
@@ -264,8 +317,14 @@ def validate_pdf_file(file: UploadFile) -> None:
             detail="Invalid file type. Only PDF files are accepted."
         )
 
-    # Check MIME type
-    if file.content_type not in ['application/pdf', 'application/x-pdf']:
+    # Check MIME type (be more lenient - some browsers send different types)
+    valid_content_types = [
+        'application/pdf',
+        'application/x-pdf',
+        'application/octet-stream',  # Some browsers send this for any binary
+        None,  # Sometimes content_type is not set
+    ]
+    if file.content_type not in valid_content_types:
         raise HTTPException(
             status_code=400,
             detail="Invalid content type. File must be a PDF."
@@ -467,31 +526,59 @@ async def convert_pdf(
 
     except HTTPException:
         # Re-raise HTTP exceptions
-        # Clean up files
-        if input_path.exists():
-            input_path.unlink()
-        if output_path.exists():
-            output_path.unlink()
+        # Clean up files safely
+        try:
+            if input_path.exists():
+                input_path.unlink()
+        except Exception:
+            pass
+        try:
+            if output_path.exists():
+                output_path.unlink()
+        except Exception:
+            pass
         raise
 
     except Exception as e:
-        # Clean up files
-        if input_path.exists():
-            input_path.unlink()
-        if output_path.exists():
-            output_path.unlink()
+        # Clean up files safely
+        try:
+            if input_path.exists():
+                input_path.unlink()
+        except Exception:
+            pass
+        try:
+            if output_path.exists():
+                output_path.unlink()
+        except Exception:
+            pass
+
+        # Get error message safely
+        try:
+            error_msg = str(e)
+        except Exception:
+            error_msg = "Unknown error occurred"
+
+        # Get error type safely
+        try:
+            error_type = type(e).__name__
+        except Exception:
+            error_type = "UnknownError"
+
+        # Get traceback safely
+        try:
+            error_traceback = traceback.format_exc()
+        except Exception:
+            error_traceback = "Traceback unavailable"
 
         # Enhanced error response with diagnostics context
         error_detail = {
-            "error": str(e),
-            "error_type": type(e).__name__,
+            "error": error_msg,
+            "error_type": error_type,
             "trace_id": trace_id,
             "step": current_step,
-            "suggestion": "Run GET /diagnostics to check component status"
+            "suggestion": "Run GET /diagnostics to check component status",
+            "traceback": error_traceback
         }
-
-        # Add traceback for debugging (in development/staging)
-        error_detail["traceback"] = traceback.format_exc()
 
         raise HTTPException(
             status_code=500,
