@@ -893,11 +893,20 @@
                     method: 'GET'
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Diagnostics request failed: ${response.status}`);
+                // Try to parse JSON response even for error status codes
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    throw new Error(`Failed to parse response: ${response.status}`);
                 }
 
-                const data = await response.json();
+                // If response is not OK but we have error data, display it
+                if (!response.ok) {
+                    displayErrorDiagnostics(data, response.status);
+                    return;
+                }
+
                 displayDiagnosticsResults(data);
 
             } catch (error) {
@@ -953,6 +962,73 @@
                 footerParts.push(`Python: ${data.python_version.split(' ')[0]}`);
             }
             diagnosticsFooter.innerHTML = footerParts.join(' | ');
+        }
+
+        function displayErrorDiagnostics(data, statusCode) {
+            // Display error diagnostics from failed backend response
+            diagnosticsSummary.innerHTML = `<span class="failed">Server Error (${statusCode}): ${escapeHtml(data.error || 'Unknown error')}</span>`;
+
+            const items = [];
+
+            // Show import error if present
+            if (data.import_error) {
+                items.push(`
+                    <li class="component-item">
+                        <div class="component-status error">!</div>
+                        <div class="component-name">Import Error</div>
+                        <div class="component-message">${escapeHtml(data.import_error)}</div>
+                    </li>
+                `);
+            }
+
+            // Show error type if present
+            if (data.error_type) {
+                items.push(`
+                    <li class="component-item">
+                        <div class="component-status error">!</div>
+                        <div class="component-name">Error Type</div>
+                        <div class="component-message">${escapeHtml(data.error_type)}</div>
+                    </li>
+                `);
+            }
+
+            // Show traceback if present (truncated for display)
+            if (data.traceback) {
+                const truncatedTraceback = data.traceback.length > 500
+                    ? data.traceback.substring(0, 500) + '...'
+                    : data.traceback;
+                items.push(`
+                    <li class="component-item">
+                        <div class="component-status error">!</div>
+                        <div class="component-name">Traceback</div>
+                        <div class="component-message" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(truncatedTraceback)}</div>
+                    </li>
+                `);
+            }
+
+            // Show Python version if present
+            if (data.python_version) {
+                items.push(`
+                    <li class="component-item">
+                        <div class="component-status ok">i</div>
+                        <div class="component-name">Python Version</div>
+                        <div class="component-message">${escapeHtml(data.python_version.split(' ')[0])}</div>
+                    </li>
+                `);
+            }
+
+            if (items.length === 0) {
+                items.push(`
+                    <li class="component-item">
+                        <div class="component-status error">!</div>
+                        <div class="component-name">Server Error</div>
+                        <div class="component-message">The server returned an error without details</div>
+                    </li>
+                `);
+            }
+
+            componentList.innerHTML = items.join('');
+            diagnosticsFooter.innerHTML = 'Tip: Check the server logs for more details. The backend may have a missing dependency or configuration issue.';
         }
     </script>
 </body>
