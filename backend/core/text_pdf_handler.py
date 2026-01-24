@@ -4,7 +4,7 @@ Text PDF Handler
 Handles extraction and processing of text-based PDFs using pdfplumber.
 Extracts chords with their bounding box coordinates for precise replacement.
 """
-
+import io
 from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 from backend.core.chord_parser import parse_chord, is_likely_chord, Chord
@@ -23,7 +23,7 @@ class ChordAnnotation:
     font_name: str = "Helvetica"  # Font name
 
 
-def extract_chords_from_text_pdf(pdf_path: str) -> Tuple[List[ChordAnnotation], Dict[str, Any]]:
+def extract_chords_from_text_pdf(input_file_bytes: bytes) -> Tuple[List[ChordAnnotation], Dict[str, Any]]:
     """
     Extract chords with positions from a text-based PDF.
 
@@ -49,7 +49,7 @@ def extract_chords_from_text_pdf(pdf_path: str) -> Tuple[List[ChordAnnotation], 
     metadata = {}
 
     try:
-        with pdfplumber.open(pdf_path) as pdf:
+        with pdfplumber.open(io.BytesIO(input_file_bytes)) as pdf:
             # Extract PDF metadata
             metadata = {
                 'num_pages': len(pdf.pages),
@@ -140,12 +140,12 @@ def extract_chords_from_text_pdf(pdf_path: str) -> Tuple[List[ChordAnnotation], 
     return chords, metadata
 
 
-def detect_if_text_pdf(pdf_path: str, min_text_threshold: int = 50) -> bool:
+def detect_if_text_pdf(input_file_bytes: bytes, min_text_threshold: int = 50) -> bool:
     """
     Detect if a PDF is text-based (as opposed to scanned/image-based).
 
     Args:
-        pdf_path: Path to the PDF file
+
         min_text_threshold: Minimum number of characters to consider it text-based
 
     Returns:
@@ -159,7 +159,7 @@ def detect_if_text_pdf(pdf_path: str, min_text_threshold: int = 50) -> bool:
         return False
 
     try:
-        with pdfplumber.open(pdf_path) as pdf:
+        with pdfplumber.open(io.BytesIO(input_file_bytes)) as pdf:
             # Check first page
             if not pdf.pages:
                 return False
