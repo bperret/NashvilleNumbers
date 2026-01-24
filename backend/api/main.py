@@ -4,7 +4,7 @@ FastAPI Backend
 Main API server for Nashville Numbers Converter.
 Provides endpoint for converting chord chart PDFs.
 """
-
+import io
 import os
 import uuid
 import asyncio
@@ -18,6 +18,7 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTa
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from starlette.responses import StreamingResponse
 
 from backend.core.pdf_processor import (
     PDFProcessor,
@@ -25,6 +26,7 @@ from backend.core.pdf_processor import (
     get_supported_keys,
     get_processing_stats
 )
+from models.types import MusicKey, MusicalMode
 
 
 # Generate a trace ID for request tracking
@@ -404,10 +406,9 @@ async def get_diagnostics():
 
 @api_router.post("/convert")
 async def convert_pdf(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    key: str = Form(...),
-    mode: str = Form("major")
+    key: MusicKey = Form(...),
+    mode: MusicalMode = Form("major")
 ):
     """
     Convert a chord chart PDF to Nashville Number System.
@@ -437,78 +438,14 @@ async def convert_pdf(
                 "step": current_step
             }
         )
-
-    # Validate key
-    current_step = "key_validation"
-    supported_keys = get_supported_keys()
-    if key not in supported_keys:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": f"Invalid key: {key}. Supported keys: {', '.join(supported_keys)}",
-                "trace_id": trace_id,
-                "step": current_step
-            }
-        )
-
-    # Validate mode
-    current_step = "mode_validation"
-    if mode not in ["major", "minor"]:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": f"Invalid mode: {mode}. Must be 'major' or 'minor'.",
-                "trace_id": trace_id,
-                "step": current_step
-            }
-        )
-
-    # Ensure temp directory exists (lazy initialization for serverless)
-    current_step = "temp_directory_setup"
+    result = None
     try:
-        ensure_temp_dir()
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": f"Failed to create temp directory: {str(e)}",
-                "trace_id": trace_id,
-                "step": current_step,
-                "suggestion": "This may be a serverless environment issue. Try running /diagnostics to check component status."
-            }
-        )
-
-    # Generate unique IDs for temp files
-    file_id = str(uuid.uuid4())
-    input_path = TEMP_DIR / f"input_{file_id}.pdf"
-    output_path = TEMP_DIR / f"output_{file_id}.pdf"
-
-    try:
-        # Read and validate file size
-        current_step = "file_upload"
-        contents = await file.read()
-        if len(contents) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail={
-                    "error": f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f} MB.",
-                    "trace_id": trace_id,
-                    "step": current_step,
-                    "file_size_bytes": len(contents)
-                }
-            )
-
-        # Save uploaded file
-        current_step = "file_save"
-        with open(input_path, "wb") as f:
-            f.write(contents)
-
         # Process the PDF
         current_step = "pdf_processing"
         try:
+            input_file_bytes = await file.read()
             result = get_pdf_processor().process_pdf(
-                str(input_path),
-                str(output_path),
+                input_file_bytes,
                 key=key,
                 mode=mode
             )
@@ -523,60 +460,31 @@ async def convert_pdf(
                 }
             )
 
-        # Verify output file was created successfully
-        current_step = "output_verification"
-        if not output_path.exists():
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": "PDF conversion completed but output file was not created",
-                    "trace_id": trace_id,
-                    "step": current_step,
-                    "suggestion": "The PDF may be corrupted or incompatible. Try a different file."
-                }
-            )
-
-        # Check output file has content
-        output_size = output_path.stat().st_size
-        if output_size == 0:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": "PDF conversion produced an empty file",
-                    "trace_id": trace_id,
-                    "step": current_step,
-                    "suggestion": "The PDF may be corrupted or incompatible. Try a different file."
-                }
-            )
-
-        # Schedule cleanup of input file
-        background_tasks.add_task(cleanup_temp_file, str(input_path), delay_minutes=1)
-
-        # Schedule cleanup of output file after 15 minutes
-        background_tasks.add_task(cleanup_temp_file, str(output_path), delay_minutes=15)
-
         # Prepare response headers safely
         current_step = "response_preparation"
         try:
             total_chords = str(result.get('total_chords_converted', 0)) if result else "0"
             processing_method = result.get('processing_method', 'unknown') if result else 'unknown'
-            output_filename = f"nashville_{file.filename}" if file.filename else "nashville_converted.pdf"
         except Exception:
             total_chords = "0"
             processing_method = "unknown"
-            output_filename = "nashville_converted.pdf"
 
         # Return the converted PDF
         current_step = "file_response"
         try:
-            return FileResponse(
-                path=str(output_path),
+            output_pdf_bytes = result.get('result_file_bytes', None) if result else "0"
+            output_file_io = io.BytesIO(output_pdf_bytes)
+            output_file_name = f"nashville_converted_{file.filename}"
+            return StreamingResponse(
+                output_file_io,
                 media_type="application/pdf",
-                filename=output_filename,
                 headers={
+                    "Content-Disposition": f'attachment; filename="{output_file_name}"',
+                    "Content-Length": str(len(output_pdf_bytes)),
                     "X-Conversion-Stats": total_chords,
                     "X-Processing-Method": processing_method,
-                    "X-Trace-ID": trace_id
+                    "X-Trace-ID": trace_id,
+                    "Access-Control-Expose-Headers": "Content-Disposition, X-Conversion-Stats"
                 }
             )
         except Exception as file_error:
@@ -589,34 +497,7 @@ async def convert_pdf(
                 }
             )
 
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        # Clean up files safely
-        try:
-            if input_path.exists():
-                input_path.unlink()
-        except Exception:
-            pass
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except Exception:
-            pass
-        raise
-
     except Exception as e:
-        # Clean up files safely
-        try:
-            if input_path.exists():
-                input_path.unlink()
-        except Exception:
-            pass
-        try:
-            if output_path.exists():
-                output_path.unlink()
-        except Exception:
-            pass
-
         # Get error message safely
         try:
             error_msg = str(e)

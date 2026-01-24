@@ -20,6 +20,7 @@ from backend.core.nashville_converter import (
     convert_chord_to_nashville,
     validate_key
 )
+from models.types import MusicKey, MusicalMode
 
 
 class PDFProcessingError(Exception):
@@ -38,10 +39,9 @@ class PDFProcessor:
 
     def process_pdf(
         self,
-        input_pdf_path: str,
-        output_pdf_path: str,
-        key: str,
-        mode: str = "major",
+        input_file_bytes: bytes,
+        key: MusicKey,
+        mode: MusicalMode = MusicalMode.MAJOR,
         force_ocr: bool = False
     ) -> Dict[str, Any]:
         """
@@ -60,15 +60,8 @@ class PDFProcessor:
         Raises:
             PDFProcessingError: If processing fails
         """
-        # Validate inputs
-        if not os.path.exists(input_pdf_path):
-            raise PDFProcessingError(f"Input PDF not found: {input_pdf_path}")
-
-        if not validate_key(key):
-            raise PDFProcessingError(f"Invalid key: {key}. Must be a valid note (A-G with optional # or b)")
-
         # Check if PDF is text-based
-        is_text_based = detect_if_text_pdf(input_pdf_path)
+        is_text_based = detect_if_text_pdf(input_file_bytes)
 
         if not is_text_based:
             raise PDFProcessingError(
@@ -78,7 +71,7 @@ class PDFProcessor:
 
         # Extract chords from text-based PDF
         try:
-            chord_annotations, metadata = extract_chords_from_text_pdf(input_pdf_path)
+            chord_annotations, metadata = extract_chords_from_text_pdf(input_file_bytes)
             processing_method = "text_extraction"
         except Exception as e:
             raise PDFProcessingError(f"Failed to extract chords: {str(e)}")
@@ -111,11 +104,10 @@ class PDFProcessor:
 
         # Render output PDF
         try:
-            render_text_pdf_with_nashville(
-                input_pdf_path,
+            result_file_bytes = render_text_pdf_with_nashville(
+                input_file_bytes,
                 chord_annotations,
                 nashville_numbers,
-                output_pdf_path,
                 metadata
             )
         except Exception as e:
@@ -134,7 +126,8 @@ class PDFProcessor:
             'total_chords_converted': len(nashville_numbers),
             'conversion_errors': conversion_errors,
             'quality_metrics': quality_metrics,
-            'metadata': metadata
+            'metadata': metadata,
+            "result_file_bytes": result_file_bytes,
         }
 
     def validate_pdf(self, pdf_path: str) -> Dict[str, Any]:

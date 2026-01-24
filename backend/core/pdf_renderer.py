@@ -15,12 +15,11 @@ from backend.core.text_pdf_handler import ChordAnnotation, get_font_mapping, est
 
 
 def render_text_pdf_with_nashville(
-    original_pdf_path: str,
+    io_bytes,
     chord_annotations: List[ChordAnnotation],
     nashville_numbers: List[str],
-    output_path: str,
     metadata: Dict[str, Any]
-) -> None:
+) -> bytes:
     """
     Render a new PDF with Nashville numbers replacing original chords.
 
@@ -49,8 +48,10 @@ def render_text_pdf_with_nashville(
         )
 
     try:
+        input_buffer = io.BytesIO(io_bytes)
+        output_buffer = io.BytesIO()
         # Read original PDF
-        pdf_reader = PdfReader(original_pdf_path)
+        pdf_reader = PdfReader(input_buffer)
         pdf_writer = PdfWriter()
 
         # Validate inputs
@@ -114,19 +115,16 @@ def render_text_pdf_with_nashville(
 
         # Write output PDF with verification
         try:
-            with open(output_path, 'wb') as output_file:
-                pdf_writer.write(output_file)
+            pdf_writer.write(output_buffer)
         except Exception as write_error:
             raise Exception(f"Failed to write output PDF file: {str(write_error)}")
 
-        # Verify the output file was created and has content
-        import os
-        if not os.path.exists(output_path):
-            raise Exception("Output PDF file was not created")
 
-        file_size = os.path.getsize(output_path)
+        file_size = output_buffer.getbuffer().nbytes
         if file_size == 0:
             raise Exception("Output PDF file is empty")
+
+        return output_buffer.getvalue()
 
     except Exception as e:
         error_msg = str(e)
